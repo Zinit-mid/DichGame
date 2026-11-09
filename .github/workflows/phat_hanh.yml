@@ -1,9 +1,10 @@
 name: Dong goi va phat hanh
 
-# Tu chay khi day the phien ban (vd: v6.1.1). Co the bam chay tay trong tab Actions.
+# Tu chay khi day code len main: neu APP_VERSION trong dich_game.py chua co Release
+# thi dong goi exe va dang Release moi (tu tao the vX.Y.Z). Co the bam chay tay trong tab Actions.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,14 +13,29 @@ permissions:
 jobs:
   dong-goi:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Doc so phien ban
+        id: pb
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path dich_game.py -Pattern 'APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
+          "the=v$v" >> $env:GITHUB_OUTPUT
+          gh release view "v$v" --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) { "co_roi=1" >> $env:GITHUB_OUTPUT; Write-Host "Release v$v da co - bo qua" }
+          else { "co_roi=0" >> $env:GITHUB_OUTPUT; Write-Host "Se dang Release v$v" }
+          $global:LASTEXITCODE = 0
+
       - uses: actions/setup-python@v5
+        if: steps.pb.outputs.co_roi == '0'
         with:
           python-version: "3.12"
 
       - name: Cai thu vien
+        if: steps.pb.outputs.co_roi == '0'
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -29,14 +45,8 @@ jobs:
             if ($LASTEXITCODE -ne 0) { Write-Host "Bo qua $p (cai loi)"; $global:LASTEXITCODE = 0 }
           }
 
-      - name: Kiem tra so phien ban khop voi the
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
-        run: |
-          $v = (Select-String -Path dich_game.py -Pattern 'APP_VERSION = "(.+)"').Matches[0].Groups[1].Value
-          if ("v$v" -ne "${{ github.ref_name }}") { throw "APP_VERSION=$v khong khop the ${{ github.ref_name }}" }
-
       - name: Dong goi DichGame.exe
+        if: steps.pb.outputs.co_roi == '0'
         shell: pwsh
         run: >
           python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame
@@ -46,24 +56,21 @@ jobs:
           dich_game.py
 
       - name: Tao goi phat hanh
+        if: steps.pb.outputs.co_roi == '0'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force phat_hanh | Out-Null
           Copy-Item dist/DichGame.exe phat_hanh/DichGame.exe
           Compress-Archive -Force -Path dich_game.py,icon.ico,requirements.txt,requirements_them.txt,chay_thu.bat,dong_goi_exe.bat,HUONG_DAN.txt -DestinationPath phat_hanh/DichGame.zip
 
-      - name: Luu file (khi chay tay)
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: DichGame
-          path: phat_hanh/*
-
       - name: Dang Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.pb.outputs.co_roi == '0'
         uses: softprops/action-gh-release@v2
         with:
-          name: Dịch Game ${{ github.ref_name }}
+          tag_name: ${{ steps.pb.outputs.the }}
+          target_commitish: ${{ github.sha }}
+          make_latest: "true"
+          name: Dịch Game ${{ steps.pb.outputs.the }}
           body_path: GHI_CHU_PHAT_HANH.md
           files: |
             phat_hanh/DichGame.exe
