@@ -39,6 +39,7 @@ import threading
 import time
 import tkinter as tk
 import unicodedata
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -992,7 +993,12 @@ def lay_thong_tin_ban_moi(cfg):
     repo = (cfg.get("github_repo") or REPO_CAP_NHAT).strip().strip("/")
     url = (cfg.get("url_cap_nhat") or "").strip()
     if repo:
-        d = _tai_json(f"https://api.github.com/repos/{repo}/releases/latest")
+        try:
+            d = _tai_json(f"https://api.github.com/repos/{repo}/releases/latest")
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                raise RuntimeError(f"kho {repo} chưa có bản phát hành nào (Release) – hãy đăng bản đầu tiên")
+            raise
         tep = {a.get("name"): a.get("browser_download_url") for a in d.get("assets", [])}
         return {"phien_ban": str(d.get("tag_name", "")).lstrip("vV"), "ghi_chu": d.get("body") or "",
                 "exe": tep.get("DichGame.exe"), "zip": tep.get("DichGame.zip")}
