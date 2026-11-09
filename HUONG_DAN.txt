@@ -1,4 +1,4 @@
-DỊCH GAME v6 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.1 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -21,21 +21,37 @@ APP TỰ NHỚ MỌI THỨ
 
 DÙNG HẰNG NGÀY
   - Mở app (DichGame.exe) rồi vào game. Không cần chọn lại vùng.
-  - F6 / F7: chỉ khi muốn chọn lại vùng Hội thoại / Nhiệm vụ (khung vàng nét đứt
-    cho thấy vùng cũ).
+
+VÙNG DỊCH (tối đa 6 vùng)
+  - Mặc định có 2 vùng: "Hội thoại" (phụ đề) và "Nhiệm vụ" (chữ cố định).
+  - "+ Thêm vùng": đặt tên (Túi đồ, Kỹ năng, Thông báo...) rồi chọn loại:
+      • Phụ đề: chữ đổi liên tục – app đọc 6–7 lần/giây, dịch rất nhanh.
+      • Cố định: nhiệm vụ, menu – app đọc mỗi giây, chỉ dịch khi chữ đổi (tiết kiệm token).
+  - Nút "Chọn": khoanh lại vùng (khung dịch tự dời theo vùng mới). F6 / F7 = chọn lại vùng 1 / 2.
+  - Nút "Lọc trắng" (vùng phụ đề): chỉ giữ chữ trắng, bỏ cảnh game phía sau.
+  - Nút "✕": xóa vùng.
+  - Thêm vùng KHÔNG làm chậm hội thoại: vùng nào hình không đổi thì app bỏ qua, vùng cố định
+    được đọc ở luồng riêng.
+
+CHỈNH KHUNG DỊCH
+  - "Chỉnh khung của:" bấm tên vùng muốn chỉnh, rồi dùng:
+      Vị trí ◀ ▲ ▼ ▶  •  Cỡ chữ − / +  •  Độ rộng − / +
+  - Hoặc F11: kéo khung bằng chuột (mỗi khung có nhãn tên vùng màu vàng).
 
 DỊCH CẢ MÀN HÌNH (F12)
-  - Kiểu "Liên tục" (mặc định): bấm F12 để BẬT – app quét màn hình mỗi 1,5 giây,
-    chữ mới xuất hiện (menu, túi đồ, bản đồ, tên NPC...) được dịch và hiện tại chỗ.
+  - Kiểu "Liên tục" (mặc định): bấm F12 để BẬT – app quét màn hình mỗi giây.
+    Chữ mới hiện bản Google gần như ngay lập tức; nếu chữ còn ở đó ở lần quét sau thì
+    Claude dịch lại cho hay hơn. Đoạn chữ được theo dõi theo vị trí nên không nhấp nháy.
     Bấm F12 lần nữa để TẮT. Chữ đã dịch được lưu lại -> mở lại menu không tốn tiền.
-    Chữ chỉ được dịch khi đứng yên ít nhất 2 lần quét (tránh dịch chữ chạy ngang).
   - Kiểu "1 lần": bấm F12 dịch 1 lần, bấm lại để xóa.
   - Vùng Hội thoại / Nhiệm vụ đã có khung dịch riêng nên F12 bỏ qua 2 vùng đó.
   - Chơi trên Steam: F12 cũng là phím chụp ảnh của Steam. Đổi phím "dich_man_hinh"
     trong cau_hinh.json (thư mục dữ liệu) nếu thấy phiền, ví dụ "ctrl+f12".
 
 TỐC ĐỘ DỊCH HỘI THOẠI
-  - Câu có dấu kết thúc (. ! ?) được dịch ngay lần đọc đầu tiên.
+  - Dòng chữ nhỏ dưới thanh trạng thái (⏱) cho biết thời gian từng bước:
+    đọc chữ • Google • Claude chữ đầu • xong • tổng từ lúc phụ đề hiện.
+  - Vùng phụ đề được đọc mỗi 0,15 giây. Câu có dấu kết thúc (. ! ?) dịch ngay lần đọc đầu.
   - "Hiện bản Google trước trong lúc chờ Claude": bản dịch Google (miễn phí) hiện gần
     như tức thì, rồi tự thay bằng bản Claude hay hơn khi xong.
   - Dịch chạy ở luồng riêng, app vẫn đọc màn hình trong lúc chờ Claude.
@@ -48,14 +64,14 @@ CẬP NHẬT
     (dong_goi_exe.bat tạo sẵn cả 2 trong thư mục phat_hanh).
 
 PHÍM TẮT
-  F6 / F7     chọn vùng Hội thoại / Nhiệm vụ
+  F6 / F7     chọn lại vùng 1 / vùng 2
   F8          bật / tắt tự động dịch
   F9          dịch ngay (lưu ảnh anh_chup_*.png vào thư mục dữ liệu)
   F10         ẩn / hiện bản dịch
   F11         chỉnh khung bằng chuột (kéo = di chuyển, góc ◢ = độ rộng, lăn chuột = cỡ chữ)
   F12         dịch cả màn hình
-  Ctrl + mũi tên          dời khung Hội thoại
-  Ctrl + Shift + mũi tên  dời khung Nhiệm vụ
+  Ctrl + mũi tên          dời khung dịch vùng 1
+  Ctrl + Shift + mũi tên  dời khung dịch vùng 2
   Ctrl + Shift + Q        thoát
 
 LỖI THƯỜNG GẶP
