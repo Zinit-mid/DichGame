@@ -1,0 +1,9 @@
+build/
+dist/
+phat_hanh/
+__pycache__/
+*.spec
+khoa_api.txt
+cau_hinh.json
+ban_dich_da_luu.json
+anh_chup_*.png

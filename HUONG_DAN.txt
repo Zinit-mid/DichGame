@@ -1,0 +1,67 @@
+DỊCH GAME v6 – HƯỚNG DẪN (Windows 10/11)
+========================================
+
+CÀI ĐẶT LẦN ĐẦU
+  1. Gói đọc chữ tiếng Anh (đã làm rồi thì bỏ qua): mở PowerShell bằng quyền Admin, dán:
+       Add-WindowsCapability -Online -Name "Language.OCR~~~en-US~0.0.1.0"
+  2. Trong game: Video > Screen Mode = Borderless Window, bật phụ đề (Subtitles).
+
+TẠO APP HOÀN CHỈNH (DichGame.exe – không cần Python khi dùng)
+  1. Bấm đúp dong_goi_exe.bat, đợi 1–3 phút.
+  2. Xong sẽ mở thư mục "phat_hanh" có file DichGame.exe (biểu tượng EN/VI).
+  3. Chép DichGame.exe ra chỗ bạn thích (Desktop, D:\Games...). Chuột phải > Send to >
+     Desktop (create shortcut) để có lối tắt.
+  Muốn chạy thử mà không đóng gói: bấm đúp chay_thu.bat.
+
+APP TỰ NHỚ MỌI THỨ
+  Vùng dịch, vị trí khung, mã API, bản dịch đã lưu… nằm trong thư mục dữ liệu:
+     %APPDATA%\DichGame   (nút "Thư mục dữ liệu" trong app mở thẳng tới đây)
+  -> Đổi chỗ để app, giải nén bản mới hay cập nhật đều KHÔNG phải chọn lại vùng.
+  Dữ liệu của bản cũ (nằm cạnh app) được tự chuyển sang lần đầu mở bản này.
+
+DÙNG HẰNG NGÀY
+  - Mở app (DichGame.exe) rồi vào game. Không cần chọn lại vùng.
+  - F6 / F7: chỉ khi muốn chọn lại vùng Hội thoại / Nhiệm vụ (khung vàng nét đứt
+    cho thấy vùng cũ).
+
+DỊCH CẢ MÀN HÌNH (F12)
+  - Kiểu "Liên tục" (mặc định): bấm F12 để BẬT – app quét màn hình mỗi 1,5 giây,
+    chữ mới xuất hiện (menu, túi đồ, bản đồ, tên NPC...) được dịch và hiện tại chỗ.
+    Bấm F12 lần nữa để TẮT. Chữ đã dịch được lưu lại -> mở lại menu không tốn tiền.
+    Chữ chỉ được dịch khi đứng yên ít nhất 2 lần quét (tránh dịch chữ chạy ngang).
+  - Kiểu "1 lần": bấm F12 dịch 1 lần, bấm lại để xóa.
+  - Vùng Hội thoại / Nhiệm vụ đã có khung dịch riêng nên F12 bỏ qua 2 vùng đó.
+  - Chơi trên Steam: F12 cũng là phím chụp ảnh của Steam. Đổi phím "dich_man_hinh"
+    trong cau_hinh.json (thư mục dữ liệu) nếu thấy phiền, ví dụ "ctrl+f12".
+
+TỐC ĐỘ DỊCH HỘI THOẠI
+  - Câu có dấu kết thúc (. ! ?) được dịch ngay lần đọc đầu tiên.
+  - "Hiện bản Google trước trong lúc chờ Claude": bản dịch Google (miễn phí) hiện gần
+    như tức thì, rồi tự thay bằng bản Claude hay hơn khi xong.
+  - Dịch chạy ở luồng riêng, app vẫn đọc màn hình trong lúc chờ Claude.
+
+CẬP NHẬT
+  - Nút "Kiểm tra cập nhật" (mục Hệ thống). Có bản mới: app hỏi, tự tải, tự thay
+    và tự mở lại. Cài đặt giữ nguyên.
+  - Nguồn cập nhật là GitHub Releases: điền "github_repo" trong cau_hinh.json,
+    ví dụ "ten-ban/DichGame". Mỗi bản phát hành cần 2 file: DichGame.exe và DichGame.zip
+    (dong_goi_exe.bat tạo sẵn cả 2 trong thư mục phat_hanh).
+
+PHÍM TẮT
+  F6 / F7     chọn vùng Hội thoại / Nhiệm vụ
+  F8          bật / tắt tự động dịch
+  F9          dịch ngay (lưu ảnh anh_chup_*.png vào thư mục dữ liệu)
+  F10         ẩn / hiện bản dịch
+  F11         chỉnh khung bằng chuột (kéo = di chuyển, góc ◢ = độ rộng, lăn chuột = cỡ chữ)
+  F12         dịch cả màn hình
+  Ctrl + mũi tên          dời khung Hội thoại
+  Ctrl + Shift + mũi tên  dời khung Nhiệm vụ
+  Ctrl + Shift + Q        thoát
+
+LỖI THƯỜNG GẶP
+  - "Không đọc được chữ": chưa cài gói đọc chữ tiếng Anh (bước 1 phần cài đặt).
+  - "Claude lỗi (HTTP 401...)": mã API sai/hết hạn – tạo mã mới, dán lại.
+  - "Claude lỗi (HTTP 400... credit...)": hết tiền – nạp thêm trên platform.claude.com.
+  - Phím tắt không ăn trong game: chuột phải DichGame.exe > Run as administrator.
+  - Viền vàng quanh màn hình: bấm "Cách chụp" chọn DXGI, tắt rồi mở lại app.
+  - Khung xem vùng chụp thấy Desktop thay vì game: đổi "Cách chụp", mở lại app.
