@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.1.0"
+APP_VERSION = "6.1.1"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -94,7 +94,7 @@ FILE_BO_NHO = os.path.join(DU_LIEU, "ban_dich_da_luu.json")
 FILE_TU_DIEN = os.path.join(DU_LIEU, "tu_dien.json")
 FILE_KHOA = os.path.join(DU_LIEU, "khoa_api.txt")
 
-PHIEN_BAN_CAU_HINH = 7
+PHIEN_BAN_CAU_HINH = 8
 SO_VUNG_TOI_DA = 6
 TY_GIA = 26000
 
@@ -103,7 +103,7 @@ TUY_LOAI = {
     # an_trong: an khung sau N lan doc khong thay chu | an_lech: an sau N lan chu khac han
     # bo_qua: giong cau dang hien tu muc nay -> khong dich lai | lech: duoi muc nay coi la doi chu
     "phu_de": {"an_trong": 3, "an_lech": 5, "bo_qua": 0.92, "lech": 0.8},
-    "co_dinh": {"an_trong": 3, "an_lech": 3, "bo_qua": 0.85, "lech": 0.7},
+    "co_dinh": {"an_trong": 8, "an_lech": 10 ** 9, "bo_qua": 0.85, "lech": 0.7},
 }
 TEN_LOAI = {"phu_de": "phụ đề / hội thoại", "co_dinh": "chữ cố định (nhiệm vụ, menu...)"}
 VONG_CO_DINH = 7  # vung co_dinh: doc lai moi 7 vong (~1 giay)
@@ -128,7 +128,8 @@ CAU_HINH_MAC_DINH = {
     "gia_usd_moi_trieu_token": [0.10, 0.50],
     "da_dung_usd": 0.0,
     "hien_google_truoc": True,
-    "chu_ky_giay": 0.15,
+    "chu_ky_giay": 0.12,
+    "hoi_thoai_chi_google": False,
     "tu_dong_dich": True,
     "cach_chup": "tu_dong",
     "toan_man_lien_tuc": True,
@@ -234,9 +235,11 @@ def nang_cap_cau_hinh(cfg):
                 v["loc_trang"] = bool(loc[ma])
             ds.append(v)
         cfg["cac_vung"] = ds
-        cfg["chu_ky_giay"] = 0.15
+        cfg["chu_ky_giay"] = 0.12
         if cfg.get("chu_ky_toan_man_giay", 1.5) >= 1.5:
             cfg["chu_ky_toan_man_giay"] = 1.0
+    if cfg.get("phien_ban", 1) < 8 and cfg.get("chu_ky_giay", 0.12) > 0.12:
+        cfg["chu_ky_giay"] = 0.12
     for cu in ("vung", "khung_dich", "co_chu", "loc_chu_trang", "lech_doc", "vi_tri_ban_dich", "so_lan_on_dinh"):
         cfg.pop(cu, None)
     if not cfg.get("cac_vung"):
@@ -925,8 +928,10 @@ class BoDich:
         tien, loi = 0.0, None
         if may == "claude":
             try:
+                thap = van_ban.lower()
+                ten = [t for t in self.ten_rieng if t.lower() in thap]
                 kq, vao, ra = self.claude.dich(self.khoa_api, self.cfg["mo_hinh"], van_ban, mo_ta,
-                                               self.lich_su.get(ma_vung, [])[-4:], self.ten_rieng, goi_lai)
+                                               self.lich_su.get(ma_vung, [])[-2:], ten, goi_lai)
                 tien = self.tien(vao, ra)
             except Exception as e:
                 loi = self._loi_claude(e)
@@ -1497,6 +1502,9 @@ class App:
         self.bien_google = tk.BooleanVar(value=bool(self.cfg["hien_google_truoc"]))
         self._o_chon(t, "Hiện bản Google trước trong lúc chờ Claude (nhanh hơn)", self.bien_google,
                      self._doi_google_truoc).pack(anchor="w", pady=(4, 0))
+        self.bien_chi_google = tk.BooleanVar(value=bool(self.cfg.get("hoi_thoai_chi_google")))
+        self._o_chon(t, "Hội thoại: CHỈ dùng Google (nhanh nhất, dịch kém hay hơn)", self.bien_chi_google,
+                     self._doi_chi_google).pack(anchor="w")
 
         # ---------- Vung dich (danh sach)
         t = self._the(trai, "Vùng dịch (app tự nhớ)")
@@ -1600,10 +1608,9 @@ class App:
             self._nut(h, "✕", cmd=lambda m=v["id"]: self._xoa_vung(m), nho=True, rong=2).pack(side="right")
             self._nut(h, "Chọn" + phim, cmd=lambda m=v["id"]: self.chon_vung(m), nho=True).pack(side="right",
                                                                                                 padx=2)
-            if v["loai"] == "phu_de":
-                b = self._nut(h, "", cmd=lambda m=v["id"]: self.lenh(f"loc:{m}"), nho=True)
-                b.pack(side="right", padx=2)
-                self.nut_loc[v["id"]] = b
+            b = self._nut(h, "", cmd=lambda m=v["id"]: self.lenh(f"loc:{m}"), nho=True)
+            b.pack(side="right", padx=2)
+            self.nut_loc[v["id"]] = b
         self.nut_them_vung.config(state="normal" if len(ds) < SO_VUNG_TOI_DA else "disabled")
 
         for w in self.khung_chon_sua.winfo_children():
@@ -1693,6 +1700,10 @@ class App:
                 keyboard.add_hotkey(phim, lambda l=lenh: self.q.put(("lenh", l)))
             except Exception as e:
                 self._bao(f"Phím tắt '{phim}' không dùng được: {e}", "loi")
+
+    def _doi_chi_google(self):
+        self.cfg["hoi_thoai_chi_google"] = bool(self.bien_chi_google.get())
+        self._luu_cau_hinh()
 
     def _doi_google_truoc(self):
         self.cfg["hien_google_truoc"] = bool(self.bien_google.get())
@@ -2137,9 +2148,10 @@ class App:
                 return
             st.t_doc = time.time() - t0
             hien_tai = self.van_ban.get(ma) or ""
-            if chu and hien_tai and chu_giong(bo_dau(chu), bo_dau(hien_tai), 0.55):
-                self.q.put(("bi_chup", ma))
-                st.van_tay = van_tay
+            khung = self.khung.get(ma)
+            if (khung is not None and not khung.khong_bi_chup and len(chu) >= 15 and hien_tai
+                    and chu_giong(bo_dau(chu), bo_dau(hien_tai), 0.75)):
+                st.van_tay = van_tay  # dang doc phai ban dich cua chinh app -> bo qua lan doc nay
                 return
             st.chu_ocr = chu
         st.van_tay = van_tay
@@ -2149,7 +2161,8 @@ class App:
             st.lan_lech += 1
         else:
             st.lan_lech = 0
-        if st.chu_da_hien and (st.lan_trong >= tuy["an_trong"] or st.lan_lech >= tuy["an_lech"]):
+        dang_hien = bool(st.chu_da_hien or self.van_ban.get(ma))
+        if dang_hien and (st.lan_trong >= tuy["an_trong"] or (st.chu_da_hien and st.lan_lech >= tuy["an_lech"])):
             st.chu_da_hien = ""
             st.lan_lech = 0
             self.q.put(("an", ma))
@@ -2162,6 +2175,10 @@ class App:
                 st.t_doi_chu = t0  # luc thay chu moi lan dau
         st.chu_cho = chu
         on_dinh = ep or st.so_lan_giong >= 1 or (v["loai"] == "phu_de" and het_cau(chu))
+        if (not on_dinh and v["loai"] == "phu_de" and len(chu) >= 30
+                and time.time() - getattr(st, "t_xem_som", 0) > 0.6):
+            st.t_xem_som = time.time()  # chu dang chay tung chu: hien ban Google tam truoc
+            threading.Thread(target=self._dich_som, args=(ma, st, chu), daemon=True).start()
         if not on_dinh or not chu:
             return
         if not ep and st.chu_da_hien:
@@ -2173,6 +2190,16 @@ class App:
 
         st.chu_da_hien = chu
         self._viec_dich(ma).gui(v, chu)
+
+    def _dich_som(self, ma, st, chu):
+        try:
+            vi = google_dich(chu)
+        except Exception:
+            return
+        # chi hien neu chua co ban dich chinh thuc moi hon cho cau nay
+        if self.trang_thai.get(ma) is st and st.chu_cho and chu_giong(chu, st.chu_cho[:len(chu)], 0.85) \
+                and not (st.chu_da_hien and st.chu_da_hien.startswith(chu[:20]) and len(st.chu_da_hien) >= len(chu)):
+            self.q.put(("hien", ma, vi))
 
     def _thuc_hien_dich(self, v, chu):
         if not chu:
@@ -2186,7 +2213,7 @@ class App:
             return self.trang_thai.get(ma) is st and st.chu_da_hien == chu
 
         t_bat_dau = time.time()
-        cu = self.bo_dich.tim(chu)
+        cu = None if (v["loai"] == "phu_de" and self.cfg.get("hoi_thoai_chi_google")) else self.bo_dich.tim(chu)
         if cu is not None:
             if con_dung():
                 self.q.put(("hien", ma, cu))
@@ -2194,6 +2221,22 @@ class App:
             return
 
         phu_de = v["loai"] == "phu_de"
+        if phu_de and self.cfg.get("hoi_thoai_chi_google"):
+            cu = self.bo_dich._tim("google", chu)
+            try:
+                vi = cu if cu is not None else google_dich(chu)
+                if cu is None:
+                    self.bo_dich.luu_google(chu, vi)
+            except Exception as e:
+                vi = f"[Không dịch được: {e}]\n" + chu
+                if con_dung():
+                    st.chu_da_hien = ""
+            if con_dung():
+                self.q.put(("hien", ma, self.bo_dich._sua(vi)))
+            self.q.put(("thoi_gian", f"⏱ {v['ten']}: đọc chữ {st.t_doc * 1000:.0f}ms • Google "
+                                     f"{(time.time() - t_bat_dau) * 1000:.0f}ms • tổng từ lúc chữ hiện "
+                                     f"{(time.time() - st.t_doi_chu) * 1000:.0f}ms (chế độ nhanh nhất)"))
+            return
         mo_ta = "lời thoại / phụ đề" if phu_de else f"chữ trong khung '{v['ten']}' (nhiệm vụ, menu, thông tin...)"
         do = {"google": None, "claude_dau": None}
         trang = {"google": False, "xong": False, "do_dai": 0, "lan_cuoi": 0.0}
@@ -2366,8 +2409,6 @@ class App:
                 elif loai == "an":
                     self.van_ban[tin[1]] = ""
                     self._ve_lai()
-                elif loai == "bi_chup":
-                    self._doi_khung_ra_ngoai(tin[1])
                 elif loai == "tien":
                     self.cfg["da_dung_usd"] = round(self.cfg["da_dung_usd"] + tin[1], 6)
                     self._cap_nhat_nut()
@@ -2426,20 +2467,6 @@ class App:
                 self.mot_lan_hien = False
                 self.toan_man.an()
                 self._cap_nhat_nut()
-
-    def _doi_khung_ra_ngoai(self, ma):
-        v = self._v(ma)
-        if not v or not v.get("vung"):
-            return
-        kd = self._kd(v)
-        cao = self.khung[ma].h if ma in self.khung else 60
-        y = v["vung"][1] - cao - 6
-        if y < 0:
-            y = v["vung"][1] + v["vung"][3] + 6
-        v["khung"] = [kd[0], y, kd[2]]
-        self._luu_cau_hinh()
-        self._ve_lai()
-        self._bao(f"Khung dịch {v['ten']} đang che vùng đọc chữ nên đã dời ra ngoài.", "canh_bao")
 
     def _giu_tren_cung(self):
         if not self.dang_chon:

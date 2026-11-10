@@ -1,9 +1,7 @@
-## Dịch Game v6.1.0
+## Dịch Game v6.1.1
 
-- Thêm vùng dịch tùy ý (tối đa 6 vùng): phụ đề hoặc chữ cố định
-- Dịch cả màn hình (F12) nhanh và ổn định hơn: Google hiện ngay, Claude dịch lại cho hay hơn
-- Hội thoại nhanh hơn, hiện thời gian từng bước (⏱)
-- Nút cỡ chữ và độ rộng riêng cho từng khung dịch
-- Báo lỗi rõ ràng khi chưa có bản phát hành
-
-Tải **DichGame.exe** bên dưới, bấm đúp để chạy. Bản đang dùng sẽ tự báo có bản mới.
+- Sửa lỗi khung dịch tự nhảy về chỗ cũ sau vài phút: khung luôn giữ đúng vị trí bạn chỉnh
+- Khung Nhiệm vụ (vùng cố định) không còn lúc có lúc không: giữ bản dịch tới khi có chữ mới, chỉ ẩn khi vùng trống khoảng 8 giây
+- Nút "Lọc trắng" cho mọi vùng (bật cho vùng Nhiệm vụ nếu chữ màu trắng)
+- Hội thoại nhanh hơn: đọc mỗi 0,12 giây, gửi Claude gọn hơn, hiện bản Google tạm khi phụ đề đang chạy từng chữ
+- Tùy chọn mới "Hội thoại: CHỈ dùng Google" – nhanh nhất (khoảng 0,3 giây), dịch kém hay hơn Claude

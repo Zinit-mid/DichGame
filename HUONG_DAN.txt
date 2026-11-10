@@ -1,4 +1,4 @@
-DỊCH GAME v6.1 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.1.1 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -28,7 +28,9 @@ VÙNG DỊCH (tối đa 6 vùng)
       • Phụ đề: chữ đổi liên tục – app đọc 6–7 lần/giây, dịch rất nhanh.
       • Cố định: nhiệm vụ, menu – app đọc mỗi giây, chỉ dịch khi chữ đổi (tiết kiệm token).
   - Nút "Chọn": khoanh lại vùng (khung dịch tự dời theo vùng mới). F6 / F7 = chọn lại vùng 1 / 2.
-  - Nút "Lọc trắng" (vùng phụ đề): chỉ giữ chữ trắng, bỏ cảnh game phía sau.
+  - Nút "Lọc trắng": chỉ giữ chữ trắng, bỏ cảnh game phía sau. Bật cho vùng nào chữ màu trắng
+    (phụ đề, nhiệm vụ...). Chữ màu khác thì tắt.
+  - Vùng cố định (nhiệm vụ) giữ bản dịch tới khi có chữ mới; chỉ ẩn khi vùng trống khoảng 8 giây.
   - Nút "✕": xóa vùng.
   - Thêm vùng KHÔNG làm chậm hội thoại: vùng nào hình không đổi thì app bỏ qua, vùng cố định
     được đọc ở luồng riêng.
@@ -51,7 +53,9 @@ DỊCH CẢ MÀN HÌNH (F12)
 TỐC ĐỘ DỊCH HỘI THOẠI
   - Dòng chữ nhỏ dưới thanh trạng thái (⏱) cho biết thời gian từng bước:
     đọc chữ • Google • Claude chữ đầu • xong • tổng từ lúc phụ đề hiện.
-  - Vùng phụ đề được đọc mỗi 0,15 giây. Câu có dấu kết thúc (. ! ?) dịch ngay lần đọc đầu.
+  - Vùng phụ đề được đọc mỗi 0,12 giây. Câu có dấu kết thúc (. ! ?) dịch ngay lần đọc đầu.
+  - Phụ đề hiện từng chữ: khi đã dài, app hiện tạm bản Google rồi thay bằng bản Claude khi đủ câu.
+  - "Hội thoại: CHỈ dùng Google": nhanh nhất (khoảng 0,3 giây/câu) nhưng dịch kém hay hơn.
   - "Hiện bản Google trước trong lúc chờ Claude": bản dịch Google (miễn phí) hiện gần
     như tức thì, rồi tự thay bằng bản Claude hay hơn khi xong.
   - Dịch chạy ở luồng riêng, app vẫn đọc màn hình trong lúc chờ Claude.
