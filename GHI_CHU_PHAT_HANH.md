@@ -1,7 +1,6 @@
-## Dịch Game v6.1.2
+## Dịch Game v6.1.3
 
-- Sửa lỗi "Failed to load Python DLL" khi app tự mở lại sau lúc cập nhật
-
-Lưu ý: lần cập nhật lên bản này vẫn có thể báo lỗi đó MỘT lần (do phần cập nhật của bản cũ). Gặp thì bấm OK rồi mở lại DichGame.exe là được. Từ bản này trở đi hết lỗi.
-
-Các thay đổi của v6.1.1: khung dịch không còn tự nhảy về chỗ cũ, khung Nhiệm vụ ổn định, hội thoại nhanh hơn, tùy chọn "Hội thoại: CHỈ dùng Google".
+- Bảng điều khiển gọn hơn: chia 3 thẻ **Chính / Khung dịch / Cài đặt**, mỗi lần chỉ hiện 1 thẻ
+- Nút **▲ Thu gọn**: co bảng điều khiển thành 1 thanh nhỏ (trạng thái + Tự động / Ẩn-Hiện / Cả màn hình / Thoát)
+- Chỉnh **cỡ giao diện 70% / 85% / 100%** (thẻ Cài đặt → Hệ thống), mặc định 85%
+- App nhớ vị trí cửa sổ lần trước

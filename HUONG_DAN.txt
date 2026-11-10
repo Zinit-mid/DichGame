@@ -1,4 +1,4 @@
-DỊCH GAME v6.1.1 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.1.3 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -21,6 +21,10 @@ APP TỰ NHỚ MỌI THỨ
 
 DÙNG HẰNG NGÀY
   - Mở app (DichGame.exe) rồi vào game. Không cần chọn lại vùng.
+  - Bảng điều khiển có 3 thẻ: Chính (vùng dịch, bật/tắt) • Khung dịch (kiểu chữ, vị trí, cỡ chữ)
+    • Cài đặt (mã API, bộ dịch, cách chụp, xem vùng chụp, cập nhật, cỡ giao diện).
+  - "▲ Thu gọn" (góc trên phải): co bảng thành 1 thanh nhỏ khi chơi; "▼ Mở rộng" để mở lại.
+  - Cỡ giao diện 70% / 85% / 100%: thẻ Cài đặt → Hệ thống.
 
 VÙNG DỊCH (tối đa 6 vùng)
   - Mặc định có 2 vùng: "Hội thoại" (phụ đề) và "Nhiệm vụ" (chữ cố định).

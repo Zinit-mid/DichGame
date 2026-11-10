@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.1.2"
+APP_VERSION = "6.1.3"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -130,6 +130,10 @@ CAU_HINH_MAC_DINH = {
     "hien_google_truoc": True,
     "chu_ky_giay": 0.12,
     "hoi_thoai_chi_google": False,
+    "co_giao_dien": 0.85,           # co chu / nut cua bang dieu khien (0.7 / 0.85 / 1.0)
+    "thu_gon": False,
+    "the_dang_mo": "chinh",
+    "vi_tri_bang": None,
     "tu_dong_dich": True,
     "cach_chup": "tu_dong",
     "toan_man_lien_tuc": True,
@@ -1373,6 +1377,9 @@ class App:
         self.viec_toan_man = ViecNen(self._xu_ly_toan_man, self._loi_nen)
 
         self._giao_dien()
+        vt = self.cfg.get("vi_tri_bang")
+        if vt and -50 <= vt[0] < self.man["width"] - 100 and -10 <= vt[1] < self.man["height"] - 100:
+            self.root.geometry(f"+{int(vt[0])}+{int(vt[1])}")
         self._dang_ky_phim()
         self.root.after(300, lambda: an_khoi_anh_chup(self.root))
         threading.Thread(target=self._vong_lap, daemon=True).start()
@@ -1433,8 +1440,8 @@ class App:
         mau = {"thuong": (UI_O, UI_CHU, UI_O_HOVER), "chinh": (UI_DO, "#ffffff", UI_DO_HOVER)}[kieu]
         b = tk.Button(cha, text=chu, command=cmd or (lambda: self.lenh(lenh)), bg=mau[0], fg=mau[1],
                       activebackground=mau[2], activeforeground=mau[1], relief="flat", bd=0,
-                      highlightthickness=0, padx=8 if nho else 12, pady=3 if nho else 6, cursor="hand2",
-                      font=("Segoe UI", 9) if nho else FONT)
+                      highlightthickness=0, padx=self._p(8 if nho else 12), pady=self._p(3 if nho else 6),
+                      cursor="hand2", font=self._f(9) if nho else self._f(10))
         if rong:
             b.config(width=rong)
         b.mau_nen, b.mau_hover = mau[0], mau[2]
@@ -1447,11 +1454,19 @@ class App:
         b.mau_hover = UI_DO_HOVER if bat else UI_O_HOVER
         b.config(bg=b.mau_nen, fg="#ffffff" if bat else UI_CHU)
 
+    def _f(self, co, kieu=""):
+        ti_le = float(self.cfg.get("co_giao_dien", 0.85))
+        co = max(6, round(co * ti_le))
+        return ("Segoe UI", co, kieu) if kieu else ("Segoe UI", co)
+
+    def _p(self, so):
+        return max(1, round(so * float(self.cfg.get("co_giao_dien", 0.85))))
+
     def _the(self, cha, tieu_de):
-        ngoai = tk.Frame(cha, bg=UI_THE, padx=14, pady=10)
-        ngoai.pack(fill="x", pady=(0, 10))
+        ngoai = tk.Frame(cha, bg=UI_THE, padx=self._p(14), pady=self._p(10))
+        ngoai.pack(fill="x", pady=(0, self._p(10)))
         tk.Label(ngoai, text=tieu_de.upper(), bg=UI_THE, fg=UI_VANG,
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 6))
+                 font=self._f(9, "bold")).pack(anchor="w", pady=(0, 6))
         return ngoai
 
     def _hang(self, cha, pady=3):
@@ -1459,13 +1474,13 @@ class App:
         h.pack(fill="x", pady=pady)
         return h
 
-    def _nhan(self, cha, chu="", mau=UI_CHU, font=FONT, **kw):
-        return tk.Label(cha, text=chu, bg=cha["bg"], fg=mau, font=font, **kw)
+    def _nhan(self, cha, chu="", mau=UI_CHU, font=None, **kw):
+        return tk.Label(cha, text=chu, bg=cha["bg"], fg=mau, font=font or self._f(10), **kw)
 
     def _o_chon(self, cha, chu, bien, lenh):
         return tk.Checkbutton(cha, text=chu, variable=bien, command=lenh, bg=cha["bg"], fg=UI_CHU,
                               selectcolor=UI_O, activebackground=cha["bg"], activeforeground=UI_CHU,
-                              font=("Segoe UI", 9), bd=0, highlightthickness=0, cursor="hand2")
+                              font=self._f(9), bd=0, highlightthickness=0, cursor="hand2")
 
     def _cap(self, cha, lua_chon, lenh_cua):
         h = tk.Frame(cha, bg=cha["bg"])
@@ -1479,44 +1494,67 @@ class App:
     # ------------------------------------------------------------ giao dien
     def _giao_dien(self):
         p = self.cfg["phim_tat"]
-        goc = tk.Frame(self.root, bg=UI_NEN, padx=16, pady=14)
-        goc.pack()
+        goc = tk.Frame(self.root, bg=UI_NEN, padx=self._p(14), pady=self._p(12))
+        goc.pack(fill="both", expand=True)
+        self.goc = goc
+        rong_chu = self._p(470)
 
         dau = tk.Frame(goc, bg=UI_NEN)
-        dau.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 10))
-        tk.Label(dau, text="DỊCH GAME", bg=UI_NEN, fg=UI_CHU, font=("Segoe UI", 18, "bold")).pack(side="left")
-        tk.Label(dau, text=f"  Anh → Việt  •  v{APP_VERSION}", bg=UI_NEN, fg=UI_PHU,
-                 font=("Segoe UI", 10)).pack(side="left", pady=(8, 0))
-        tt = tk.Frame(goc, bg=UI_THE, padx=12, pady=6)
-        tt.grid(row=1, column=0, columnspan=2, sticky="we", pady=(0, 10))
-        self.lbl_tt = tk.Label(tt, text="Đang khởi động...", bg=UI_THE, fg=UI_PHU, font=("Segoe UI", 9),
-                               wraplength=780, justify="left", anchor="w")
+        dau.pack(fill="x", pady=(0, self._p(8)))
+        tk.Label(dau, text="DỊCH GAME", bg=UI_NEN, fg=UI_CHU, font=self._f(16, "bold")).pack(side="left")
+        tk.Label(dau, text=f"  v{APP_VERSION}", bg=UI_NEN, fg=UI_PHU, font=self._f(9)).pack(
+            side="left", pady=(self._p(6), 0))
+        self.nut_thu_gon = self._nut(dau, "", "thu_gon", nho=True)
+        self.nut_thu_gon.pack(side="right")
+
+        tt = tk.Frame(goc, bg=UI_THE, padx=self._p(10), pady=self._p(5))
+        tt.pack(fill="x", pady=(0, self._p(8)))
+        self.lbl_tt = tk.Label(tt, text="Đang khởi động...", bg=UI_THE, fg=UI_PHU, font=self._f(9),
+                               wraplength=rong_chu, justify="left", anchor="w")
         self.lbl_tt.pack(fill="x")
-        self.lbl_tg = tk.Label(tt, text="", bg=UI_THE, fg=UI_PHU, font=("Segoe UI", 8),
-                               wraplength=780, justify="left", anchor="w")
+        self.lbl_tg = tk.Label(tt, text="", bg=UI_THE, fg=UI_PHU, font=self._f(8),
+                               wraplength=rong_chu, justify="left", anchor="w")
         self.lbl_tg.pack(fill="x")
 
-        trai = tk.Frame(goc, bg=UI_NEN)
-        trai.grid(row=2, column=0, sticky="n", padx=(0, 10))
-        phai = tk.Frame(goc, bg=UI_NEN)
-        phai.grid(row=2, column=1, sticky="n")
+        # --- thanh thu gon (chi hien khi bam Thu gon)
+        self.khung_mini = tk.Frame(goc, bg=UI_NEN)
+        self.nut_tu_dong_mini = self._nut(self.khung_mini, "", "bat_tat_tu_dong", nho=True)
+        self.nut_tu_dong_mini.pack(side="left", padx=(0, 3))
+        self._nut(self.khung_mini, f"Ẩn/Hiện ({p['an_hien'].upper()})", "an_hien", nho=True).pack(
+            side="left", padx=(0, 3))
+        self.nut_toan_man_mini = self._nut(self.khung_mini, "", "dich_man_hinh", nho=True)
+        self.nut_toan_man_mini.pack(side="left", padx=(0, 3))
+        self._nut(self.khung_mini, "Thoát", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
+
+        # --- thanh chon the
+        self.thanh_the = tk.Frame(goc, bg=UI_NEN)
+        self.nut_the = {}
+        for ma, ten in (("chinh", "Chính"), ("khung", "Khung dịch"), ("cai_dat", "Cài đặt")):
+            b = self._nut(self.thanh_the, ten, cmd=lambda m=ma: self.lenh("the:" + m))
+            b.pack(side="left", padx=(0, self._p(3)), expand=True, fill="x")
+            self.nut_the[ma] = b
+        self.noi_dung = tk.Frame(goc, bg=UI_NEN)
+        self.trang = {m: tk.Frame(self.noi_dung, bg=UI_NEN) for m in ("chinh", "khung", "cai_dat")}
+        trai = self.trang["cai_dat"]
+        chinh = self.trang["chinh"]
+        phai = self.trang["khung"]
 
         # ---------- Dich AI
         t = self._the(trai, "Dịch bằng AI")
-        self.lbl_khoa = self._nhan(t, font=("Segoe UI", 9))
+        self.lbl_khoa = self._nhan(t, font=self._f(9))
         self.lbl_khoa.pack(anchor="w")
         h = self._hang(t)
         self.o_khoa = tk.Entry(h, show="•", width=26, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU,
-                               relief="flat", font=FONT)
+                               relief="flat", font=self._f(10))
         self.o_khoa.pack(side="left", ipady=4, padx=(0, 6))
         self._nut(h, "Lưu mã", cmd=self._luu_khoa, nho=True).pack(side="left", padx=(0, 2))
         self._nut(h, "Thử", cmd=self._thu_claude, nho=True).pack(side="left")
         h = self._hang(t)
-        self._nhan(h, "Bộ dịch:", UI_PHU, ("Segoe UI", 9)).pack(side="left", padx=(0, 8))
+        self._nhan(h, "Bộ dịch:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 8))
         khung, self.nut_bo_dich = self._cap(h, [("claude", "Claude AI"), ("google", "Google (miễn phí)")],
                                             lambda g: self.lenh("bo_dich_" + g))
         khung.pack(side="left")
-        self.lbl_tien = self._nhan(t, mau=UI_PHU, font=("Segoe UI", 9))
+        self.lbl_tien = self._nhan(t, mau=UI_PHU, font=self._f(9))
         self.lbl_tien.pack(anchor="w", pady=(4, 0))
         self.bien_google = tk.BooleanVar(value=bool(self.cfg["hien_google_truoc"]))
         self._o_chon(t, "Hiện bản Google trước trong lúc chờ Claude (nhanh hơn)", self.bien_google,
@@ -1526,14 +1564,14 @@ class App:
                      self._doi_chi_google).pack(anchor="w")
 
         # ---------- Vung dich (danh sach)
-        t = self._the(trai, "Vùng dịch (app tự nhớ)")
+        t = self._the(chinh, "Vùng dịch (app tự nhớ)")
         self.khung_ds_vung = tk.Frame(t, bg=UI_THE)
         self.khung_ds_vung.pack(fill="x")
         self.nut_them_vung = self._nut(t, "+ Thêm vùng", cmd=self._them_vung, nho=True)
         self.nut_them_vung.pack(anchor="w", pady=(6, 0))
 
         # ---------- Dieu khien
-        t = self._the(trai, "Điều khiển")
+        t = self._the(chinh, "Điều khiển")
         self.nut_tu_dong = self._nut(t, "", "bat_tat_tu_dong")
         self.nut_tu_dong.pack(fill="x", pady=2)
         h = self._hang(t)
@@ -1543,7 +1581,7 @@ class App:
         self.nut_toan_man = self._nut(t, "", "dich_man_hinh")
         self.nut_toan_man.pack(fill="x", pady=(6, 2))
         h = self._hang(t)
-        self._nhan(h, "Kiểu dịch cả màn hình:", UI_PHU, ("Segoe UI", 9)).pack(side="left", padx=(0, 8))
+        self._nhan(h, "Kiểu dịch cả màn hình:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 8))
         khung, self.nut_kieu_toan_man = self._cap(h, [("lien_tuc", "Liên tục"), ("mot_lan", "1 lần")],
                                                   lambda g: self.lenh("toan_man_" + g))
         khung.pack(side="left")
@@ -1551,7 +1589,7 @@ class App:
         # ---------- Khung dich
         t = self._the(phai, "Khung dịch")
         h = self._hang(t)
-        self._nhan(h, "Kiểu:", UI_PHU, ("Segoe UI", 9), width=9, anchor="w").pack(side="left")
+        self._nhan(h, "Kiểu:", UI_PHU, self._f(9), width=9, anchor="w").pack(side="left")
         khung, self.nut_kieu = self._cap(h, [("phu_de", "Phụ đề (chỉ chữ)"), ("khung", "Khung nền tối")],
                                          lambda g: self.lenh("kieu_" + g))
         khung.pack(side="left")
@@ -1560,10 +1598,10 @@ class App:
 
         def cong_tru(cha, ten, tru, cong, rong_ten=12):
             h = self._hang(cha, 2)
-            nhan = self._nhan(h, ten, UI_PHU, ("Segoe UI", 9), width=rong_ten, anchor="w")
+            nhan = self._nhan(h, ten, UI_PHU, self._f(9), width=rong_ten, anchor="w")
             nhan.pack(side="left")
             self._nut(h, "−", cmd=lambda: self.lenh(tru), nho=True, rong=2).pack(side="left")
-            gt = self._nhan(h, "", UI_CHU, FONT_DAM, width=6)
+            gt = self._nhan(h, "", UI_CHU, self._f(10, "bold"), width=6)
             gt.pack(side="left")
             self._nut(h, "+", cmd=lambda: self.lenh(cong), nho=True, rong=2).pack(side="left")
             return nhan, gt
@@ -1573,28 +1611,33 @@ class App:
 
         tk.Frame(t, bg=UI_O, height=1).pack(fill="x", pady=8)
         h = self._hang(t)
-        self._nhan(h, "Chỉnh khung của:", UI_PHU, ("Segoe UI", 9)).pack(side="left", padx=(0, 6))
+        self._nhan(h, "Chỉnh khung của:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 6))
         self.khung_chon_sua = tk.Frame(h, bg=UI_THE)
         self.khung_chon_sua.pack(side="left")
         h = self._hang(t, 2)
-        self._nhan(h, "Vị trí:", UI_PHU, ("Segoe UI", 9), width=12, anchor="w").pack(side="left")
+        self._nhan(h, "Vị trí:", UI_PHU, self._f(9), width=12, anchor="w").pack(side="left")
         for chu, hanh in (("◀", "trai"), ("▲", "len"), ("▼", "xuong"), ("▶", "phai")):
             self._nut(h, chu, cmd=lambda hh=hanh: self.lenh(f"khung:{self.vung_dang_sua}:{hh}"),
                       nho=True, rong=2).pack(side="left", padx=1)
         _, self.lbl_co_chu = cong_tru(t, "Cỡ chữ:", "co_chu_giam", "co_chu_tang")
         _, self.lbl_do_rong = cong_tru(t, "Độ rộng:", "rong_giam", "rong_tang")
         self._nhan(t, "Phím: Ctrl+mũi tên dời khung vùng 1 • Ctrl+Shift+mũi tên dời khung vùng 2",
-                   UI_PHU, ("Segoe UI", 8)).pack(anchor="w", pady=(4, 0))
+                   UI_PHU, self._f(8), wraplength=self._p(430), justify="left").pack(anchor="w", pady=(4, 0))
 
         # ---------- Xem vung chup
-        t = self._the(phai, "App đang nhìn thấy gì")
+        t = self._the(trai, "App đang nhìn thấy gì")
         self.nut_xem = self._nut(t, "", "xem_vung")
         self.nut_xem.pack(fill="x", pady=(0, 4))
         self.khung_xem = tk.Frame(t, bg=UI_THE)
         self.khung_xem.pack(fill="x")
 
         # ---------- He thong
-        t = self._the(phai, "Hệ thống")
+        t = self._the(trai, "Hệ thống")
+        h = self._hang(t)
+        self._nhan(h, "Cỡ giao diện:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 6))
+        khung, self.nut_co_gd = self._cap(h, [(0.7, "70%"), (0.85, "85%"), (1.0, "100%")],
+                                          lambda g: self.lenh(f"co_gd:{g}"))
+        khung.pack(side="left")
         h = self._hang(t)
         self.nut_cach_chup = self._nut(h, "", "doi_cach_chup", nho=True)
         self.nut_cach_chup.pack(side="left", padx=(0, 4))
@@ -1605,7 +1648,35 @@ class App:
         self._nut(h, "Thoát", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
 
         self._ve_ds_vung()
+        self._sap_xep_giao_dien()
         self._cap_nhat_nut()
+
+    def _sap_xep_giao_dien(self):
+        """Hien the dang chon, hoac thanh thu gon."""
+        for w in (self.khung_mini, self.thanh_the, self.noi_dung):
+            w.pack_forget()
+        if self.cfg.get("thu_gon"):
+            self.lbl_tg.pack_forget()
+            self.khung_mini.pack(fill="x")
+        else:
+            self.lbl_tg.pack(fill="x")
+            self.thanh_the.pack(fill="x", pady=(0, self._p(8)))
+            self.noi_dung.pack(fill="both", expand=True)
+            the = self.cfg.get("the_dang_mo", "chinh")
+            if the not in self.trang:
+                the = "chinh"
+            for m, khung in self.trang.items():
+                if m == the:
+                    khung.pack(fill="both", expand=True)
+                else:
+                    khung.pack_forget()
+
+    def _ve_lai_giao_dien(self):
+        chu_tt = self.lbl_tt.cget("text")
+        mau_tt = self.lbl_tt.cget("fg")
+        self.goc.destroy()
+        self._giao_dien()
+        self.lbl_tt.config(text=chu_tt, fg=mau_tt)
 
     def _ve_ds_vung(self):
         """Ve lai danh sach vung, nut chon vung de chinh khung va o xem truoc."""
@@ -1621,8 +1692,8 @@ class App:
             phim = ""
             if i < 2:
                 phim = f" ({self.cfg['phim_tat']['chon_hoi_thoai' if i == 0 else 'chon_nhiem_vu'].upper()})"
-            self._nhan(h, v["ten"], font=FONT_DAM, width=10, anchor="w").pack(side="left")
-            self.lbl_vung[v["id"]] = self._nhan(h, "", UI_PHU, ("Segoe UI", 8), width=17, anchor="w")
+            self._nhan(h, v["ten"], font=self._f(10, "bold"), width=10, anchor="w").pack(side="left")
+            self.lbl_vung[v["id"]] = self._nhan(h, "", UI_PHU, self._f(8), width=17, anchor="w")
             self.lbl_vung[v["id"]].pack(side="left")
             self._nut(h, "✕", cmd=lambda m=v["id"]: self._xoa_vung(m), nho=True, rong=2).pack(side="right")
             self._nut(h, "Chọn" + phim, cmd=lambda m=v["id"]: self.chon_vung(m), nho=True).pack(side="right",
@@ -1644,7 +1715,7 @@ class App:
             w.destroy()
         self.lbl_xem, self.anh_xem = {}, {}
         for v in ds:
-            self._nhan(self.khung_xem, v["ten"], UI_PHU, ("Segoe UI", 8)).pack(anchor="w")
+            self._nhan(self.khung_xem, v["ten"], UI_PHU, self._f(8)).pack(anchor="w")
             self.lbl_xem[v["id"]] = tk.Label(self.khung_xem, text="(tắt)", fg=UI_PHU, bg="#0d0e12",
                                              width=48, height=2)
             self.lbl_xem[v["id"]].pack(pady=(0, 3), anchor="w")
@@ -1659,6 +1730,15 @@ class App:
         self.nut_tu_dong.config(text=f"Tự động dịch: {'BẬT' if c['tu_dong_dich'] else 'TẮT'}  "
                                      f"({p['bat_tat_tu_dong'].upper()})")
         self._dat_mau_nut(self.nut_tu_dong, c["tu_dong_dich"])
+        self.nut_tu_dong_mini.config(text=f"Tự động: {'BẬT' if c['tu_dong_dich'] else 'TẮT'}")
+        self._dat_mau_nut(self.nut_tu_dong_mini, c["tu_dong_dich"])
+        self.nut_toan_man_mini.config(text=f"Cả màn hình ({p['dich_man_hinh'].upper()})")
+        self._dat_mau_nut(self.nut_toan_man_mini, self.toan_man_bat or self.mot_lan_hien)
+        self.nut_thu_gon.config(text="▼ Mở rộng" if c.get("thu_gon") else "▲ Thu gọn")
+        for m, b in self.nut_the.items():
+            self._dat_mau_nut(b, m == c.get("the_dang_mo", "chinh"))
+        for g, b in self.nut_co_gd.items():
+            self._dat_mau_nut(b, abs(g - float(c.get("co_giao_dien", 0.85))) < 0.01)
         khoa = self.bo_dich.khoa_api
         if khoa and self.bo_dich.khoa_hong:
             self.lbl_khoa.config(text=f"Mã API (…{khoa[-4:]}) bị từ chối – dán mã mới", fg=UI_LOI)
@@ -1851,7 +1931,18 @@ class App:
             if ma:
                 self.chon_vung(ma)
             return
-        if ten.startswith("sua:"):
+        if ten.startswith("the:"):
+            c["the_dang_mo"] = ten[4:]
+            self._sap_xep_giao_dien()
+        elif ten == "thu_gon":
+            c["thu_gon"] = not c.get("thu_gon")
+            self._sap_xep_giao_dien()
+        elif ten.startswith("co_gd:"):
+            c["co_giao_dien"] = float(ten[6:])
+            self._luu_cau_hinh()
+            self.root.after(10, self._ve_lai_giao_dien)
+            return
+        elif ten.startswith("sua:"):
             self.vung_dang_sua = ten[4:]
             self._xem_thu()
         elif ten.startswith("loc:"):
@@ -2025,7 +2116,7 @@ class App:
         cv.pack(fill="both", expand=True)
         cx = chinh["left"] - tat_ca["left"] + chinh["width"] // 2
         cy = chinh["top"] - tat_ca["top"] + 70
-        cv.create_text(cx, cy, fill="white", font=("Segoe UI", 22, "bold"),
+        cv.create_text(cx, cy, fill="white", font=self._f(22, "bold"),
                        text=f"Kéo chuột khoanh vùng chữ \"{v['ten'].upper()}\"   •   Esc để hủy")
         if v.get("vung"):
             x, y, w, h = v["vung"]
@@ -2511,6 +2602,10 @@ class App:
             return
         self.dung.set()
         self.ep_dich.set()
+        try:
+            self.cfg["vi_tri_bang"] = [self.root.winfo_x(), self.root.winfo_y()]
+        except Exception:
+            pass
         try:
             keyboard.unhook_all()
         except Exception:
