@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.1.1"
+APP_VERSION = "6.1.2"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -1027,6 +1027,20 @@ def tai_tep(url, duong_dan, bao=None):
                 bao(f"Đang tải bản mới... {da * 100 // tong}%")
 
 
+def moi_truong_sach():
+    """Bien moi truong cho app moi: bo thong tin thu muc tam cua app cu (PyInstaller),
+    neu khong app moi se tim python312.dll trong thu muc tam da bi xoa va bao loi."""
+    mei = getattr(sys, "_MEIPASS", "") or ""
+    env = {k: v for k, v in os.environ.items()
+           if not (k.upper().startswith("_PYI_") or k.upper().startswith("_MEIPASS")
+                   or k.upper() in ("TCL_LIBRARY", "TK_LIBRARY", "PYTHONHOME", "PYTHONPATH"))}
+    if mei and "PATH" in env:
+        env["PATH"] = os.pathsep.join(p for p in env["PATH"].split(os.pathsep)
+                                      if p and not p.lower().startswith(mei.lower()))
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
+
+
 def ap_dung_cap_nhat(thong_tin, bao):
     """Tai va thay ban moi. Tra ve True neu app can tat de hoan tat."""
     if DONG_GOI:
@@ -1038,11 +1052,15 @@ def ap_dung_cap_nhat(thong_tin, bao):
         hien = sys.executable
         bat = os.path.join(DU_LIEU, "cap_nhat.bat")
         with open(bat, "w", encoding="utf-8") as f:
-            f.write("@echo off\r\nchcp 65001 >nul\r\nping 127.0.0.1 -n 3 >nul\r\n:lap\r\n"
+            f.write("@echo off\r\nchcp 65001 >nul\r\n"
+                    "set _PYI_APPLICATION_HOME_DIR=\r\nset _PYI_ARCHIVE_FILE=\r\nset _PYI_PARENT_PROCESS_LEVEL=\r\n"
+                    "set _PYI_SPLASH_IPC=\r\nset _MEIPASS2=\r\nset TCL_LIBRARY=\r\nset TK_LIBRARY=\r\n"
+                    "set PYINSTALLER_RESET_ENVIRONMENT=1\r\n"
+                    "ping 127.0.0.1 -n 4 >nul\r\n:lap\r\n"
                     f'move /y "{moi}" "{hien}" >nul 2>nul\r\n'
                     "if errorlevel 1 (ping 127.0.0.1 -n 2 >nul & goto lap)\r\n"
                     f'start "" "{hien}"\r\ndel "%~f0"\r\n')
-        subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000, close_fds=True)
+        subprocess.Popen(["cmd", "/c", bat], creationflags=0x08000000, close_fds=True, env=moi_truong_sach())
         return True
     url = thong_tin.get("zip")
     if not url:
@@ -1055,7 +1073,8 @@ def ap_dung_cap_nhat(thong_tin, bao):
             if goc and goc.lower().endswith((".py", ".bat", ".txt", ".ico")):
                 with z.open(ten) as nguon, open(os.path.join(THU_MUC_APP, goc), "wb") as dich:
                     shutil.copyfileobj(nguon, dich)
-    subprocess.Popen([sys.executable, os.path.join(THU_MUC_APP, "dich_game.py")], cwd=THU_MUC_APP)
+    subprocess.Popen([sys.executable, os.path.join(THU_MUC_APP, "dich_game.py")], cwd=THU_MUC_APP,
+                     env=moi_truong_sach())
     return True
 
 

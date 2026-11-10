@@ -1,7 +1,7 @@
-## Dịch Game v6.1.1
+## Dịch Game v6.1.2
 
-- Sửa lỗi khung dịch tự nhảy về chỗ cũ sau vài phút: khung luôn giữ đúng vị trí bạn chỉnh
-- Khung Nhiệm vụ (vùng cố định) không còn lúc có lúc không: giữ bản dịch tới khi có chữ mới, chỉ ẩn khi vùng trống khoảng 8 giây
-- Nút "Lọc trắng" cho mọi vùng (bật cho vùng Nhiệm vụ nếu chữ màu trắng)
-- Hội thoại nhanh hơn: đọc mỗi 0,12 giây, gửi Claude gọn hơn, hiện bản Google tạm khi phụ đề đang chạy từng chữ
-- Tùy chọn mới "Hội thoại: CHỈ dùng Google" – nhanh nhất (khoảng 0,3 giây), dịch kém hay hơn Claude
+- Sửa lỗi "Failed to load Python DLL" khi app tự mở lại sau lúc cập nhật
+
+Lưu ý: lần cập nhật lên bản này vẫn có thể báo lỗi đó MỘT lần (do phần cập nhật của bản cũ). Gặp thì bấm OK rồi mở lại DichGame.exe là được. Từ bản này trở đi hết lỗi.
+
+Các thay đổi của v6.1.1: khung dịch không còn tự nhảy về chỗ cũ, khung Nhiệm vụ ổn định, hội thoại nhanh hơn, tùy chọn "Hội thoại: CHỈ dùng Google".
