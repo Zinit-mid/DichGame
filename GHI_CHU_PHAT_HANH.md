@@ -1,13 +1,14 @@
-## Dịch Game v6.2.0
+## Dịch Game v6.2.1
 
-**Dịch hội thoại ngay trên máy (CPU), đồng bộ với game**
-- Mô hình dịch offline quickmt-en-vi (~400 MB, app tự tải lần đầu) – mỗi câu ~0,1 giây, không cần mạng
-- Chế độ mặc định "Offline + Claude": hiện bản offline ngay, Claude dịch ngầm để lưu, lần sau gặp lại câu đó hiện bản Claude ngay
-- Bản dịch không còn tự đổi giữa chừng (có tùy chọn "Đổi sang bản Claude khi có")
-- Chụp màn hình nhẹ hơn: chỉ sao chép đúng các vùng cần đọc
+**Vùng cố định (túi đồ, tài liệu, nhiệm vụ...) dịch nhanh hơn nhiều**
+- Đọc vùng mỗi ~0,25 giây (trước ~0,85 giây); hình không đổi thì không đọc lại nên không tốn máy
+- Dịch ngay khi trang/mô tả hiện xong (không chờ đọc chữ 2 lần)
+- Hiện bản offline ngay (~0,1–0,3 giây), Claude dịch ngầm rồi thay bằng bản hay hơn
+  (tắt được: thẻ Cài đặt → "Vùng cố định: đổi sang bản Claude khi có")
+- Mở lại vật phẩm / tài liệu đã xem: hiện bản Claude đã lưu ngay
 
-**Giọng đọc tiếng Việt (lồng tiếng)**
-- Giọng Nam Minh (nam, mặc định) hoặc Hoài My (nữ) – giọng AI của Microsoft, cần mạng
-- Câu mới thì ngắt câu cũ, đọc câu mới cho khớp game
-- Bật/tắt giọng (Ctrl+Shift+V), chỉnh tốc độ đọc và âm lượng giọng
-- Tùy chọn giảm tiếng game khi đọc: Giữ nguyên / 50% / 25% / Tắt
+**Giọng đọc nhanh hơn, theo kịp hội thoại**
+- Tốc độ đọc mặc định +25% (trước +10%)
+- Câu dài tự đọc nhanh hơn (tối đa thêm +30%) – tắt được trong thẻ Chính
+- Đoạn dài được chia câu: đọc câu đầu ngay, câu sau được tạo sẵn trong lúc đọc
+- Câu đã đọc rồi thì đọc lại ngay, không phải tạo lại

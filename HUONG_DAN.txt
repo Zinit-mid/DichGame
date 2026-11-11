@@ -1,4 +1,4 @@
-DỊCH GAME v6.2.0 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.2.1 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -29,8 +29,9 @@ DÙNG HẰNG NGÀY
 VÙNG DỊCH (tối đa 6 vùng)
   - Mặc định có 2 vùng: "Hội thoại" (phụ đề) và "Nhiệm vụ" (chữ cố định).
   - "+ Thêm vùng": đặt tên (Túi đồ, Kỹ năng, Thông báo...) rồi chọn loại:
-      • Phụ đề: chữ đổi liên tục – app đọc 6–7 lần/giây, dịch rất nhanh.
-      • Cố định: nhiệm vụ, menu – app đọc mỗi giây, chỉ dịch khi chữ đổi (tiết kiệm token).
+      • Phụ đề: chữ đổi liên tục – app đọc 8 lần/giây, dịch rất nhanh, có giọng đọc.
+      • Cố định: túi đồ, tài liệu, nhiệm vụ, menu – app đọc 4 lần/giây; hiện bản offline ngay
+        rồi đổi sang bản Claude khi có; chỉ dịch lại khi chữ đổi (tiết kiệm token).
   - Nút "Chọn": khoanh lại vùng (khung dịch tự dời theo vùng mới). F6 / F7 = chọn lại vùng 1 / 2.
   - Nút "Lọc trắng": chỉ giữ chữ trắng, bỏ cảnh game phía sau. Bật cho vùng nào chữ màu trắng
     (phụ đề, nhiệm vụ...). Chữ màu khác thì tắt.
@@ -67,7 +68,8 @@ DỊCH OFFLINE (CPU) – thẻ Cài đặt
 GIỌNG ĐỌC (LỒNG TIẾNG) – thẻ Chính
   - Đọc to bản dịch vùng phụ đề/hội thoại. Câu mới sẽ ngắt câu đang đọc.
   - Giọng: Nam Minh (nam) / Hoài My (nữ) – giọng AI của Microsoft, cần mạng.
-  - Tốc độ đọc −/+ (đọc nhanh hơn để theo kịp game), Âm lượng giọng −/+.
+  - Tốc độ đọc −/+ (mặc định +25%), Âm lượng giọng −/+.
+  - "Câu dài thì tự đọc nhanh hơn": câu càng dài đọc càng nhanh (tối đa thêm +30%).
   - Tiếng game khi đọc: Giữ nguyên / 50% / 25% / Tắt – app tự giảm tiếng các ứng dụng khác
     (game) trong lúc đọc rồi trả lại như cũ.
     Nếu app bị tắt đột ngột lúc đang đọc mà tiếng game vẫn nhỏ: chuột phải biểu tượng loa
