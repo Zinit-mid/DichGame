@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.2.1"
+APP_VERSION = "6.2.2"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -142,6 +142,7 @@ CAU_HINH_MAC_DINH = {
     "thu_gon": False,
     "the_dang_mo": "chinh",
     "vi_tri_bang": None,
+    "kich_thuoc_bang": None,        # [rong, cao] cua bang dieu khien (keo de doi)
     "tu_dong_dich": True,
     "cach_chup": "tu_dong",
     "toan_man_lien_tuc": True,
@@ -1134,18 +1135,24 @@ GIONG = {"vi-VN-NamMinhNeural": "Nam Minh (nam)", "vi-VN-HoaiMyNeural": "Hoài M
 
 class GiongDoc:
     """Doc ban dich bang giong Microsoft Edge (edge-tts), phat bang MCI cua Windows.
-    Co cau moi thi ngat cau cu. Tuy chon giam tieng game (pycaw) trong luc doc."""
+    Doc NOI TIEP: doc xong doan dang doc roi chuyen sang cau MOI NHAT (bo cau o giua da troi qua).
+    Giong cua cau moi duoc tao ngay khi cau xuat hien (song song luc dang doc cau truoc)."""
     BI_DANH = "dichgame_giong"
 
     def __init__(self, cfg, khi_loi):
         self.cfg = cfg
         self.khi_loi = khi_loi
-        self.so = 0
+        self.so = 0                 # tang khi TAT giong -> dung ngay
+        self.cho = None             # doan moi nhat dang cho doc
+        self.dk = threading.Condition()
+        self.dang_doc = False
+        self.cuoi = ("", 0.0)
         self.vol_goc = {}
         self.da_com = False
-        self.viec = ViecNen(self._lam, khi_loi)
-        self.tao_truoc = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self.lan_bao_loi = 0.0
+        self.tao_truoc = concurrent.futures.ThreadPoolExecutor(max_workers=3)
         self.bo_nho = {}
+        threading.Thread(target=self._vong, daemon=True).start()
 
     @staticmethod
     def co_thu_vien():
@@ -1155,17 +1162,37 @@ class GiongDoc:
         except Exception:
             return False
 
+    @staticmethod
+    def _lam_sach(chu):
+        dong = [re.sub(r"^[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,2}:\s+", "", d) for d in chu.split("\n")]
+        noi = " ".join(dong).replace("…", "...")
+        noi = re.sub(r"[^\w\s.,!?;:'\"%()\-]", " ", noi)
+        noi = re.sub(r"\s+", " ", noi).strip()
+        return noi if sum(c.isalpha() for c in noi) >= 2 else ""
+
     def doc(self, chu):
         if not self.cfg.get("giong_doc") or not chu or chu.startswith("["):
             return
-        noi = "\n".join(re.sub(r"^[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,2}:\s+", "", d)
-                        for d in chu.split("\n")).strip()
-        if noi:
-            self.so += 1
-            self.viec.gui(self.so, noi)
+        noi = self._lam_sach(chu)
+        if not noi:
+            return
+        if noi == self.cuoi[0] and time.time() - self.cuoi[1] < 8:
+            return  # cau vua doc roi
+        self.cuoi = (noi, time.time())
+        toc = self._toc(noi) + (15 if self.dang_doc else 0)  # dang bi don cau -> doc nhanh hon
+        toc = max(-30, min(80, toc))
+        cac_cau = self._cat_cau(noi)
+        muc = {"cau": cac_cau, "toc": toc, "fut": [None] * len(cac_cau)}
+        for i in range(min(2, len(cac_cau))):  # tao giong NGAY, khong cho doan truoc doc xong
+            muc["fut"][i] = self.tao_truoc.submit(self._am, cac_cau[i], toc)
+        with self.dk:
+            self.cho = muc
+            self.dk.notify()
 
     def dung(self):
-        self.so += 1  # vong phat dang chay se tu dung
+        with self.dk:
+            self.cho = None
+            self.so += 1
 
     def _mci(self, lenh):
         buf = ctypes.create_unicode_buffer(128)
@@ -1187,22 +1214,31 @@ class GiongDoc:
         return asyncio.run(chay())
 
     def _am(self, chu, toc):
-        """Am thanh cua 1 doan (co nho lai: cau lap lai doc ngay)."""
+        """Am thanh 1 doan: co nho lai, loi thi thu lai 1 lan."""
         k = (self.cfg.get("giong"), toc, chu)
         am = self.bo_nho.get(k)
-        if am is None:
-            am = self._tao_am(chu, toc)
-            if am:
-                self.bo_nho[k] = am
-                if len(self.bo_nho) > 300:
-                    self.bo_nho.pop(next(iter(self.bo_nho)))
+        if am is not None:
+            return am
+        loi = None
+        for lan in range(2):
+            try:
+                am = self._tao_am(chu, toc)
+                if am:
+                    break
+            except Exception as e:
+                loi = e
+                time.sleep(0.3)
+        if not am:
+            raise loi or RuntimeError("không nhận được âm thanh")
+        self.bo_nho[k] = am
+        if len(self.bo_nho) > 300:
+            self.bo_nho.pop(next(iter(self.bo_nho)))
         return am
 
     @staticmethod
     def _cat_cau(chu):
-        """Cat thanh tung cau ngan de doc cau dau ngay, khong cho tao xong ca doan."""
         ra = []
-        for m in re.split(r"(?<=[.!?…])\s+|\n+", chu):
+        for m in re.split(r"(?<=[.!?])\s+", chu):
             m = m.strip()
             if not m:
                 continue
@@ -1215,37 +1251,61 @@ class GiongDoc:
     def _toc(self, chu):
         toc = int(self.cfg.get("toc_do_giong", 25))
         if self.cfg.get("toc_tu_dong", True):
-            toc += min(30, max(0, (len(chu) - 60) // 4))  # cau dai -> doc nhanh hon
+            toc += min(30, max(0, (len(chu) - 60) // 4))
         return max(-30, min(80, toc))
 
-    def _lam(self, so, chu):
-        if so != self.so:
-            return
-        toc = self._toc(chu)
-        cac_cau = self._cat_cau(chu)
-        sau = self.tao_truoc.submit(self._am, cac_cau[0], toc)
+    def _bao_loi(self, e):
+        if time.time() - self.lan_bao_loi > 20:  # khong bao loi lien tuc
+            self.lan_bao_loi = time.time()
+            self.khi_loi(e)
+
+    def _vong(self):
+        while True:
+            with self.dk:
+                while self.cho is None:
+                    self.dk.wait()
+                muc, self.cho = self.cho, None
+                so = self.so
+            self.dang_doc = True
+            try:
+                self._doc_muc(muc, so)
+            except Exception as e:
+                self._bao_loi(e)
+            finally:
+                self.dang_doc = False
+                if self.cho is None:
+                    self._tra_game()
+
+    def _doc_muc(self, muc, so):
         da_giam = False
-        try:
-            for i in range(len(cac_cau)):
-                am = sau.result()
-                if i + 1 < len(cac_cau):  # tao truoc cau tiep theo trong luc doc cau nay
-                    sau = self.tao_truoc.submit(self._am, cac_cau[i + 1], toc)
-                if so != self.so:
-                    return
-                if not am:
-                    continue
-                if not da_giam:
-                    self._giam_game()
-                    da_giam = True
-                self._phat(am, so, i)
-                if so != self.so:
-                    return
-        finally:
-            if self.viec.viec is None:  # khong con cau nao cho doc -> tra lai tieng game
-                self._tra_game()
+        n = len(muc["cau"])
+        for i in range(n):
+            if i > 0 and self.cho is not None:
+                return  # da co cau moi hon -> doc cau moi (khong cat ngang giua cau)
+            if i + 1 < n and muc["fut"][i + 1] is None:
+                muc["fut"][i + 1] = self.tao_truoc.submit(self._am, muc["cau"][i + 1], muc["toc"])
+            f = muc["fut"][i] or self.tao_truoc.submit(self._am, muc["cau"][i], muc["toc"])
+            try:
+                am = f.result(timeout=10)
+            except Exception as e:
+                self._bao_loi(e)
+                continue
+            if so != self.so:
+                return
+            moi = self.cho
+            if i == 0 and moi is not None and moi["fut"][0] is not None and moi["fut"][0].done():
+                return  # cau nay chua kip doc ma cau moi hon da san sang -> doc cau moi
+            if not am:
+                continue
+            if not da_giam:
+                self._giam_game()
+                da_giam = True
+            self._phat(am, so, i)
+            if so != self.so:
+                return
 
     def _phat(self, am, so, i):
-        tep = os.path.join(tempfile.gettempdir(), f"dichgame_giong_{(so * 7 + i) % 6}.mp3")
+        tep = os.path.join(tempfile.gettempdir(), f"dichgame_giong_{(so * 7 + i + int(time.time() * 10)) % 6}.mp3")
         self._mci(f"close {self.BI_DANH}")
         with open(tep, "wb") as f:
             f.write(am)
@@ -1643,7 +1703,9 @@ class App:
         self.root = tk.Tk()
         self.root.title(f"Dịch Game v{APP_VERSION}")
         self.root.configure(bg=UI_NEN)
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
+        self.root.minsize(320, 160)
+        self._kich_thuoc = None
         bieu_tuong = os.path.join(getattr(sys, "_MEIPASS", THU_MUC_APP), "icon.ico")
         try:
             self.root.iconbitmap(bieu_tuong)
@@ -1685,6 +1747,7 @@ class App:
         vt = self.cfg.get("vi_tri_bang")
         if vt and -50 <= vt[0] < self.man["width"] - 100 and -10 <= vt[1] < self.man["height"] - 100:
             self.root.geometry(f"+{int(vt[0])}+{int(vt[1])}")
+        self.root.after(500, lambda: self.root.bind("<Configure>", self._ghi_kich_thuoc, add="+"))
         self._dang_ky_phim()
         self.root.after(300, lambda: an_khoi_anh_chup(self.root))
         threading.Thread(target=self._khoi_dong_offline, daemon=True).start()
@@ -1815,6 +1878,7 @@ class App:
 
         tt = tk.Frame(goc, bg=UI_THE, padx=self._p(10), pady=self._p(5))
         tt.pack(fill="x", pady=(0, self._p(8)))
+        tt.bind("<Configure>", lambda e: self._doi_rong_chu(e.width))
         self.lbl_tt = tk.Label(tt, text="Đang khởi động...", bg=UI_THE, fg=UI_PHU, font=self._f(9),
                                wraplength=rong_chu, justify="left", anchor="w")
         self.lbl_tt.pack(fill="x")
@@ -1841,7 +1905,19 @@ class App:
             b = self._nut(self.thanh_the, ten, cmd=lambda m=ma: self.lenh("the:" + m))
             b.pack(side="left", padx=(0, self._p(3)), expand=True, fill="x")
             self.nut_the[ma] = b
-        self.noi_dung = tk.Frame(goc, bg=UI_NEN)
+        # vung noi dung co thanh cuon: keo cua so ngan lai thi lan chuot de xem phan duoi
+        self.vung_cuon = tk.Frame(goc, bg=UI_NEN)
+        self.cv_cuon = tk.Canvas(self.vung_cuon, bg=UI_NEN, highlightthickness=0, bd=0)
+        self.thanh_cuon = tk.Scrollbar(self.vung_cuon, orient="vertical", command=self.cv_cuon.yview)
+        self.cv_cuon.configure(yscrollcommand=self.thanh_cuon.set)
+        self.thanh_cuon.pack(side="right", fill="y")
+        self.cv_cuon.pack(side="left", fill="both", expand=True)
+        self.noi_dung = tk.Frame(self.cv_cuon, bg=UI_NEN)
+        self._id_noi_dung = self.cv_cuon.create_window((0, 0), window=self.noi_dung, anchor="nw")
+        self.noi_dung.bind("<Configure>",
+                           lambda e: self.cv_cuon.configure(scrollregion=self.cv_cuon.bbox("all")))
+        self.cv_cuon.bind("<Configure>", lambda e: self.cv_cuon.itemconfigure(self._id_noi_dung, width=e.width))
+        self.root.bind_all("<MouseWheel>", self._lan_chuot_bang)
         self.trang = {m: tk.Frame(self.noi_dung, bg=UI_NEN) for m in ("chinh", "khung", "cai_dat")}
         trai = self.trang["cai_dat"]
         chinh = self.trang["chinh"]
@@ -1985,6 +2061,8 @@ class App:
         self.nut_cach_chup.pack(side="left", padx=(0, 4))
         self._nut(h, "Thư mục dữ liệu", cmd=lambda: os.startfile(DU_LIEU), nho=True).pack(side="left")
         h = self._hang(t)
+        self._nut(h, "Cỡ cửa sổ vừa nội dung", cmd=self._vua_noi_dung, nho=True).pack(side="left")
+        h = self._hang(t)
         self.nut_cap_nhat = self._nut(h, "Kiểm tra cập nhật", cmd=self._kiem_tra_cap_nhat, nho=True)
         self.nut_cap_nhat.pack(side="left", padx=(0, 4))
         self._nut(h, "Thoát", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
@@ -1995,15 +2073,16 @@ class App:
 
     def _sap_xep_giao_dien(self):
         """Hien the dang chon, hoac thanh thu gon."""
-        for w in (self.khung_mini, self.thanh_the, self.noi_dung):
+        for w in (self.khung_mini, self.thanh_the, self.vung_cuon):
             w.pack_forget()
         if self.cfg.get("thu_gon"):
             self.lbl_tg.pack_forget()
             self.khung_mini.pack(fill="x")
+            self.root.geometry("")  # co ve kich thuoc vua thanh nho
         else:
             self.lbl_tg.pack(fill="x")
             self.thanh_the.pack(fill="x", pady=(0, self._p(8)))
-            self.noi_dung.pack(fill="both", expand=True)
+            self.vung_cuon.pack(fill="both", expand=True)
             the = self.cfg.get("the_dang_mo", "chinh")
             if the not in self.trang:
                 the = "chinh"
@@ -2012,6 +2091,41 @@ class App:
                     khung.pack(fill="both", expand=True)
                 else:
                     khung.pack_forget()
+            self.cv_cuon.yview_moveto(0)
+            self._dat_kich_thuoc()
+
+    def _dat_kich_thuoc(self):
+        """Kich thuoc bang: theo lan keo truoc; chua keo thi vua noi dung nhung khong qua 80% man hinh."""
+        kt = self._kich_thuoc or self.cfg.get("kich_thuoc_bang")
+        if kt:
+            self.root.geometry(f"{int(kt[0])}x{int(kt[1])}")
+            return
+        self.root.update_idletasks()
+        rong = self.noi_dung.winfo_reqwidth() + self.thanh_cuon.winfo_reqwidth() + self._p(30)
+        cao_dau = self.goc.winfo_reqheight() - self.vung_cuon.winfo_reqheight()
+        cao = min(self.noi_dung.winfo_reqheight() + cao_dau + self._p(10), int(self.man["height"] * 0.8))
+        self.root.geometry(f"{max(rong, 360)}x{max(cao, 200)}")
+
+    def _doi_rong_chu(self, rong):
+        for nhan in (self.lbl_tt, self.lbl_tg):
+            nhan.config(wraplength=max(200, rong - 24))
+
+    def _lan_chuot_bang(self, e):
+        try:
+            if e.widget.winfo_toplevel() is not self.root or self.cfg.get("thu_gon"):
+                return
+        except Exception:
+            return
+        self.cv_cuon.yview_scroll(int(-e.delta / 120) or (-1 if e.delta > 0 else 1), "units")
+
+    def _ghi_kich_thuoc(self, e):
+        if e.widget is self.root and not self.cfg.get("thu_gon") and e.width > 100 and e.height > 100:
+            self._kich_thuoc = (e.width, e.height)
+
+    def _vua_noi_dung(self):
+        self._kich_thuoc = None
+        self.cfg["kich_thuoc_bang"] = None
+        self._dat_kich_thuoc()
 
     def _ve_lai_giao_dien(self):
         chu_tt = self.lbl_tt.cget("text")
@@ -3094,6 +3208,8 @@ class App:
         self.ep_dich.set()
         try:
             self.cfg["vi_tri_bang"] = [self.root.winfo_x(), self.root.winfo_y()]
+            if self._kich_thuoc:
+                self.cfg["kich_thuoc_bang"] = list(self._kich_thuoc)
         except Exception:
             pass
         try:

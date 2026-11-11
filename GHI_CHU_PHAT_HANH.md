@@ -1,14 +1,13 @@
-## Dịch Game v6.2.1
+## Dịch Game v6.2.2
 
-**Vùng cố định (túi đồ, tài liệu, nhiệm vụ...) dịch nhanh hơn nhiều**
-- Đọc vùng mỗi ~0,25 giây (trước ~0,85 giây); hình không đổi thì không đọc lại nên không tốn máy
-- Dịch ngay khi trang/mô tả hiện xong (không chờ đọc chữ 2 lần)
-- Hiện bản offline ngay (~0,1–0,3 giây), Claude dịch ngầm rồi thay bằng bản hay hơn
-  (tắt được: thẻ Cài đặt → "Vùng cố định: đổi sang bản Claude khi có")
-- Mở lại vật phẩm / tài liệu đã xem: hiện bản Claude đã lưu ngay
+**Giọng đọc không còn bị mất câu**
+- Đọc nối tiếp: đọc xong câu đang đọc rồi chuyển sang câu MỚI NHẤT (câu ở giữa đã trôi qua thì bỏ) – trước đây câu mới ngắt câu cũ nên hội thoại dồn dập gần như không đọc được
+- Giọng của câu mới được tạo ngay khi câu xuất hiện, song song lúc đang đọc câu trước
+- Đang bị dồn câu thì tự đọc nhanh hơn (+15%) để đuổi kịp game
+- Lỗi "NoAudioReceived" tự thử lại; lọc ký tự lạ trước khi đọc; không báo lỗi liên tục
 
-**Giọng đọc nhanh hơn, theo kịp hội thoại**
-- Tốc độ đọc mặc định +25% (trước +10%)
-- Câu dài tự đọc nhanh hơn (tối đa thêm +30%) – tắt được trong thẻ Chính
-- Đoạn dài được chia câu: đọc câu đầu ngay, câu sau được tạo sẵn trong lúc đọc
-- Câu đã đọc rồi thì đọc lại ngay, không phải tạo lại
+**Bảng điều khiển kéo được kích thước**
+- Kéo mép / góc cửa sổ để đổi chiều cao, chiều rộng
+- Có thanh cuộn: thu ngắn cửa sổ thì lăn chuột để xem phần dưới
+- Lần đầu: cửa sổ vừa nội dung nhưng không cao quá 80% màn hình
+- App nhớ kích thước; nút "Cỡ cửa sổ vừa nội dung" (Cài đặt → Hệ thống) để đặt lại

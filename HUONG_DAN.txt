@@ -1,4 +1,4 @@
-DỊCH GAME v6.2.1 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.2.2 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -25,6 +25,8 @@ DÙNG HẰNG NGÀY
     • Cài đặt (mã API, bộ dịch, cách chụp, xem vùng chụp, cập nhật, cỡ giao diện).
   - "▲ Thu gọn" (góc trên phải): co bảng thành 1 thanh nhỏ khi chơi; "▼ Mở rộng" để mở lại.
   - Cỡ giao diện 70% / 85% / 100%: thẻ Cài đặt → Hệ thống.
+  - Kéo mép/góc bảng điều khiển để đổi kích thước; lăn chuột để cuộn xem phần dưới.
+    Nút "Cỡ cửa sổ vừa nội dung" (Cài đặt → Hệ thống) đặt lại kích thước.
 
 VÙNG DỊCH (tối đa 6 vùng)
   - Mặc định có 2 vùng: "Hội thoại" (phụ đề) và "Nhiệm vụ" (chữ cố định).
@@ -66,7 +68,8 @@ DỊCH OFFLINE (CPU) – thẻ Cài đặt
   - "Đổi sang bản Claude khi có": bật thì chữ đang hiện sẽ đổi 1 lần sang bản Claude.
 
 GIỌNG ĐỌC (LỒNG TIẾNG) – thẻ Chính
-  - Đọc to bản dịch vùng phụ đề/hội thoại. Câu mới sẽ ngắt câu đang đọc.
+  - Đọc to bản dịch vùng phụ đề/hội thoại. Đọc nối tiếp: xong câu đang đọc thì chuyển sang
+    câu mới nhất; thoại dồn dập thì tự đọc nhanh hơn để theo kịp.
   - Giọng: Nam Minh (nam) / Hoài My (nữ) – giọng AI của Microsoft, cần mạng.
   - Tốc độ đọc −/+ (mặc định +25%), Âm lượng giọng −/+.
   - "Câu dài thì tự đọc nhanh hơn": câu càng dài đọc càng nhanh (tối đa thêm +30%).
