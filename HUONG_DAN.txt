@@ -1,4 +1,4 @@
-DỊCH GAME v6.2.2 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.2.3 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -79,6 +79,12 @@ GIỌNG ĐỌC (LỒNG TIẾNG) – thẻ Chính
     góc phải dưới màn hình > Open volume mixer > kéo lại âm lượng game.
   - Tắt hẳn giọng: nút "Giọng đọc: BẬT/TẮT" hoặc Ctrl+Shift+V.
 
+TIẾT KIỆM TIỀN CLAUDE
+  - Tắt Claude: nút "Claude: BẬT/TẮT" hoặc Ctrl+Shift+C -> chỉ dịch offline / Google (miễn phí).
+  - Câu Claude đã dịch trước đó vẫn hiện bản Claude, không tốn thêm tiền.
+  - Cài đặt -> Dịch bằng AI -> "Giới hạn mỗi ngày": tới mức này Claude tự tắt tới ngày mai.
+  - F12 liên tục và vùng Item / Tài liệu là chỗ tốn Claude nhiều nhất.
+
 TỐC ĐỘ DỊCH HỘI THOẠI
   - Dòng chữ nhỏ dưới thanh trạng thái (⏱) cho biết thời gian từng bước:
     đọc chữ • Google • Claude chữ đầu • xong • tổng từ lúc phụ đề hiện.
@@ -104,6 +110,7 @@ PHÍM TẮT
   F11         chỉnh khung bằng chuột (kéo = di chuyển, góc ◢ = độ rộng, lăn chuột = cỡ chữ)
   F12         dịch cả màn hình
   Ctrl+Shift+V  bật / tắt giọng đọc
+  Ctrl+Shift+C  bật / tắt Claude (tắt = tiết kiệm)
   Ctrl + mũi tên          dời khung dịch vùng 1
   Ctrl + Shift + mũi tên  dời khung dịch vùng 2
   Ctrl + Shift + Q        thoát
