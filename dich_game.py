@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.2.2"
+APP_VERSION = "6.2.3"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -94,7 +94,7 @@ FILE_BO_NHO = os.path.join(DU_LIEU, "ban_dich_da_luu.json")
 FILE_TU_DIEN = os.path.join(DU_LIEU, "tu_dien.json")
 FILE_KHOA = os.path.join(DU_LIEU, "khoa_api.txt")
 
-PHIEN_BAN_CAU_HINH = 10
+PHIEN_BAN_CAU_HINH = 11
 SO_VUNG_TOI_DA = 6
 TY_GIA = 26000
 
@@ -124,6 +124,9 @@ CAU_HINH_MAC_DINH = {
     "do_dam_chu": 1.0,
     "do_mo": 0.85,
     "bo_dich": "claude",
+    "claude_bat": True,             # False = che do tiet kiem: khong goi Claude (chi offline / Google)
+    "gioi_han_ngay_usd": 0,         # 0 = khong gioi han; vuot muc -> Claude tu tat toi ngay mai
+    "chi_ngay": {"ngay": "", "usd": 0.0},
     "mo_hinh": "claude-haiku-5-5",
     "gia_usd_moi_trieu_token": [0.10, 0.50],
     "da_dung_usd": 0.0,
@@ -167,6 +170,7 @@ CAU_HINH_MAC_DINH = {
         "nhiem_vu_trai": "ctrl+shift+left",
         "nhiem_vu_phai": "ctrl+shift+right",
         "bat_tat_giong": "ctrl+shift+v",
+        "bat_tat_claude": "ctrl+shift+c",
         "thoat": "ctrl+shift+q",
     },
 }
@@ -257,6 +261,9 @@ def nang_cap_cau_hinh(cfg):
     if cfg.get("phien_ban", 1) < 9 and cfg.pop("hoi_thoai_chi_google", False):
         cfg["che_do_hoi_thoai"] = "google"
     cfg.pop("hoi_thoai_chi_google", None)
+    if cfg.get("phien_ban", 1) < 11 and cfg.get("bo_dich") == "google":
+        cfg["claude_bat"] = False
+    cfg["bo_dich"] = "claude"
     if cfg.get("phien_ban", 1) < 8 and cfg.get("chu_ky_giay", 0.12) > 0.12:
         cfg["chu_ky_giay"] = 0.12
     for cu in ("vung", "khung_dich", "co_chu", "loc_chu_trang", "lech_doc", "vi_tri_ban_dich", "so_lan_on_dinh"):
@@ -909,8 +916,17 @@ class BoDich:
         self.khoa_hong = False
         self.claude.kieu_xac_thuc = None
 
+    def chi_hom_nay(self):
+        cn = self.cfg.get("chi_ngay") or {}
+        return float(cn.get("usd", 0)) if cn.get("ngay") == time.strftime("%Y-%m-%d") else 0.0
+
+    def het_han_muc(self):
+        gh = float(self.cfg.get("gioi_han_ngay_usd") or 0)
+        return gh > 0 and self.chi_hom_nay() >= gh
+
     def dung_claude(self):
-        return self.cfg["bo_dich"] == "claude" and bool(self.khoa_api) and not self.khoa_hong
+        return (self.cfg.get("claude_bat", True) and bool(self.khoa_api) and not self.khoa_hong
+                and not self.het_han_muc())
 
     def _sua(self, s):
         for sai, dung in self.sua.items():
@@ -937,7 +953,9 @@ class BoDich:
         return None
 
     def tim(self, van_ban):
-        kq = self._tim("claude" if self.dung_claude() else "google", van_ban)
+        kq = self._tim("claude", van_ban)  # ban Claude da luu: mien phi, luon dung
+        if kq is None and not self.dung_claude():
+            kq = self._tim("google", van_ban)
         return None if kq is None else self._sua(kq)
 
     def _luu(self, may, van_ban, vi):
@@ -959,7 +977,9 @@ class BoDich:
     def dich(self, van_ban, ma_vung, mo_ta, goi_lai=None):
         """Tra ve (ban_dich, nguon, tien_usd, loi)."""
         may = "claude" if self.dung_claude() else "google"
-        cu = self._tim(may, van_ban)
+        cu = self._tim("claude", van_ban)
+        if cu is None and may == "google":
+            cu = self._tim("google", van_ban)
         if cu is not None:
             return self._sua(cu), "đã lưu", 0.0, None
         tien, loi = 0.0, None
@@ -1896,6 +1916,8 @@ class App:
         self.nut_toan_man_mini.pack(side="left", padx=(0, 3))
         self.nut_giong_mini = self._nut(self.khung_mini, "", "giong_bat_tat", nho=True)
         self.nut_giong_mini.pack(side="left", padx=(0, 3))
+        self.nut_claude_mini = self._nut(self.khung_mini, "", "bat_tat_claude", nho=True)
+        self.nut_claude_mini.pack(side="left", padx=(0, 3))
         self._nut(self.khung_mini, "Thoát", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
 
         # --- thanh chon the
@@ -1934,9 +1956,12 @@ class App:
         self._nut(h, "Lưu mã", cmd=self._luu_khoa, nho=True).pack(side="left", padx=(0, 2))
         self._nut(h, "Thử", cmd=self._thu_claude, nho=True).pack(side="left")
         h = self._hang(t)
-        self._nhan(h, "Bộ dịch:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 8))
-        khung, self.nut_bo_dich = self._cap(h, [("claude", "Claude AI"), ("google", "Google (miễn phí)")],
-                                            lambda g: self.lenh("bo_dich_" + g))
+        self.nut_claude_cd = self._nut(h, "", "bat_tat_claude", nho=True)
+        self.nut_claude_cd.pack(side="left")
+        h = self._hang(t)
+        self._nhan(h, "Giới hạn mỗi ngày:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 8))
+        khung, self.nut_gioi_han = self._cap(h, [(0, "Không"), (0.05, "$0.05"), (0.1, "$0.10"), (0.2, "$0.20")],
+                                             lambda g: self.lenh(f"gioi_han:{g}"))
         khung.pack(side="left")
         self.lbl_tien = self._nhan(t, mau=UI_PHU, font=self._f(9))
         self.lbl_tien.pack(anchor="w", pady=(4, 0))
@@ -1973,6 +1998,8 @@ class App:
         t = self._the(chinh, "Điều khiển")
         self.nut_tu_dong = self._nut(t, "", "bat_tat_tu_dong")
         self.nut_tu_dong.pack(fill="x", pady=2)
+        self.nut_claude = self._nut(t, "", "bat_tat_claude")
+        self.nut_claude.pack(fill="x", pady=2)
         h = self._hang(t)
         self._nut(h, f"Dịch ngay ({p['dich_ngay'].upper()})", "dich_ngay").pack(side="left", expand=True,
                                                                                 fill="x", padx=(0, 4))
@@ -2226,10 +2253,28 @@ class App:
             self.lbl_khoa.config(text=f"Mã API đã lưu (…{khoa[-4:]}) ✓", fg=UI_XANH)
         else:
             self.lbl_khoa.config(text="Chưa có mã API – dán mã vào ô dưới", fg=UI_VANG)
-        for g, b in self.nut_bo_dich.items():
-            self._dat_mau_nut(b, c["bo_dich"] == g)
+        cb = bool(c.get("claude_bat", True))
+        het = self.bo_dich.het_han_muc()
+        if not cb:
+            chu_cl = "Claude: TẮT – tiết kiệm (chỉ offline/Google)"
+        elif het:
+            chu_cl = "Claude: hết hạn mức hôm nay – tự bật lại ngày mai"
+        else:
+            chu_cl = "Claude: BẬT (tốn tiền)"
+        self.nut_claude.config(text=f"{chu_cl}  ({p.get('bat_tat_claude', 'ctrl+shift+c').upper()})")
+        self._dat_mau_nut(self.nut_claude, cb and not het)
+        self.nut_claude_cd.config(text=chu_cl)
+        self._dat_mau_nut(self.nut_claude_cd, cb and not het)
+        self.nut_claude_mini.config(text=f"Claude: {'BẬT' if cb and not het else 'TẮT'}")
+        self._dat_mau_nut(self.nut_claude_mini, cb and not het)
+        gh = float(c.get("gioi_han_ngay_usd") or 0)
+        for g, b in self.nut_gioi_han.items():
+            self._dat_mau_nut(b, abs(g - gh) < 1e-9)
         usd = c["da_dung_usd"]
-        self.lbl_tien.config(text=f"Đã dùng khoảng {usd:.4f} USD (≈ {usd * TY_GIA:,.0f}đ)".replace(",", "."))
+        hn = self.bo_dich.chi_hom_nay()
+        self.lbl_tien.config(text=(f"Hôm nay: {hn:.4f} USD (≈ {hn * TY_GIA:,.0f}đ)"
+                                   + (f" / giới hạn {gh:.2f} USD" if gh > 0 else "")
+                                   + f" • Tổng: {usd:.4f} USD (≈ {usd * TY_GIA:,.0f}đ)").replace(",", "."))
         for v in self._ds():
             lbl = self.lbl_vung.get(v["id"])
             if lbl:
@@ -2534,10 +2579,21 @@ class App:
                 for m, lbl in self.lbl_xem.items():
                     lbl.config(image="", text="(tắt)", width=48, height=2)
                 self.anh_xem.clear()
-        elif ten in ("bo_dich_claude", "bo_dich_google"):
-            c["bo_dich"] = ten.split("_")[-1]
-            if c["bo_dich"] == "claude" and not self.bo_dich.khoa_api:
-                self._bao("Chưa có mã API – dán mã vào ô rồi bấm Lưu mã.", "canh_bao")
+        elif ten in ("bat_tat_claude", "bo_dich_claude", "bo_dich_google"):
+            c["claude_bat"] = (not c.get("claude_bat", True)) if ten == "bat_tat_claude" else ten.endswith("claude")
+            if not c["claude_bat"]:
+                self._bao("Đã TẮT Claude – chế độ tiết kiệm: chỉ dịch offline / Google (bản Claude đã lưu vẫn dùng).")
+            elif not self.bo_dich.khoa_api:
+                self._bao("Đã bật Claude nhưng chưa có mã API – dán mã vào ô rồi bấm Lưu mã.", "canh_bao")
+            elif self.bo_dich.het_han_muc():
+                self._bao("Đã bật Claude nhưng hôm nay đã tới giới hạn tiền – tăng giới hạn hoặc chờ ngày mai.",
+                          "canh_bao")
+            else:
+                self._bao("Đã BẬT Claude.")
+        elif ten.startswith("gioi_han:"):
+            c["gioi_han_ngay_usd"] = float(ten[9:])
+            self._bao("Đã bỏ giới hạn tiền mỗi ngày." if not c["gioi_han_ngay_usd"]
+                      else f"Giới hạn {c['gioi_han_ngay_usd']:.2f} USD/ngày – tới mức này Claude tự tắt tới ngày mai.")
         elif ten in ("kieu_phu_de", "kieu_khung"):
             c["kieu_hien"] = "phu_de" if ten == "kieu_phu_de" else "khung"
             self._xem_thu()
@@ -2871,6 +2927,8 @@ class App:
         t_bat_dau = time.time()
         phu_de = v["loai"] == "phu_de"
         che_do = self.cfg.get("che_do_hoi_thoai", "offline_claude")
+        if che_do == "claude" and not self.bo_dich.dung_claude():
+            che_do = "offline_claude"  # Claude dang tat / het han muc -> dich offline cho nhanh, mien phi
         if phu_de and che_do in ("offline", "offline_claude", "google"):
             self._dich_nhanh(v, chu, st, con_dung, che_do, t_bat_dau)
             return
@@ -3123,6 +3181,17 @@ class App:
                     self._ve_lai()
                 elif loai == "tien":
                     self.cfg["da_dung_usd"] = round(self.cfg["da_dung_usd"] + tin[1], 6)
+                    truoc = self.bo_dich.het_han_muc()
+                    hom_nay = time.strftime("%Y-%m-%d")
+                    cn = self.cfg.get("chi_ngay") or {}
+                    if cn.get("ngay") != hom_nay:
+                        cn = {"ngay": hom_nay, "usd": 0.0}
+                    cn["usd"] = round(float(cn.get("usd", 0)) + tin[1], 6)
+                    self.cfg["chi_ngay"] = cn
+                    if not truoc and self.bo_dich.het_han_muc():
+                        self._bao("Đã tới giới hạn tiền hôm nay – Claude tự tắt tới ngày mai "
+                                  "(vẫn dịch offline / Google).", "canh_bao")
+                        self._luu_cau_hinh()
                     self._cap_nhat_nut()
                 elif loai == "offline":
                     self._cap_nhat_nut()
