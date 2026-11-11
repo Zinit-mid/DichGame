@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.1.3"
+APP_VERSION = "6.2.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -94,7 +94,7 @@ FILE_BO_NHO = os.path.join(DU_LIEU, "ban_dich_da_luu.json")
 FILE_TU_DIEN = os.path.join(DU_LIEU, "tu_dien.json")
 FILE_KHOA = os.path.join(DU_LIEU, "khoa_api.txt")
 
-PHIEN_BAN_CAU_HINH = 8
+PHIEN_BAN_CAU_HINH = 9
 SO_VUNG_TOI_DA = 6
 TY_GIA = 26000
 
@@ -129,7 +129,13 @@ CAU_HINH_MAC_DINH = {
     "da_dung_usd": 0.0,
     "hien_google_truoc": True,
     "chu_ky_giay": 0.12,
-    "hoi_thoai_chi_google": False,
+    "che_do_hoi_thoai": "offline_claude",  # offline | offline_claude | claude | google
+    "thay_bang_claude": False,      # dang hien ban offline -> doi sang ban Claude khi co
+    "giong_doc": True,
+    "giong": "vi-VN-NamMinhNeural",
+    "toc_do_giong": 10,             # %
+    "am_luong_giong": 1.0,
+    "giam_tieng_game": 1.0,         # 1.0 giu nguyen | 0.5 | 0.25 | 0.0 tat tieng game khi doc
     "co_giao_dien": 0.85,           # co chu / nut cua bang dieu khien (0.7 / 0.85 / 1.0)
     "thu_gon": False,
     "the_dang_mo": "chinh",
@@ -157,6 +163,7 @@ CAU_HINH_MAC_DINH = {
         "nhiem_vu_xuong": "ctrl+shift+down",
         "nhiem_vu_trai": "ctrl+shift+left",
         "nhiem_vu_phai": "ctrl+shift+right",
+        "bat_tat_giong": "ctrl+shift+v",
         "thoat": "ctrl+shift+q",
     },
 }
@@ -242,6 +249,9 @@ def nang_cap_cau_hinh(cfg):
         cfg["chu_ky_giay"] = 0.12
         if cfg.get("chu_ky_toan_man_giay", 1.5) >= 1.5:
             cfg["chu_ky_toan_man_giay"] = 1.0
+    if cfg.get("phien_ban", 1) < 9 and cfg.pop("hoi_thoai_chi_google", False):
+        cfg["che_do_hoi_thoai"] = "google"
+    cfg.pop("hoi_thoai_chi_google", None)
     if cfg.get("phien_ban", 1) < 8 and cfg.get("chu_ky_giay", 0.12) > 0.12:
         cfg["chu_ky_giay"] = 0.12
     for cu in ("vung", "khung_dich", "co_chu", "loc_chu_trang", "lech_doc", "vi_tri_ban_dich", "so_lan_on_dinh"):
@@ -324,7 +334,10 @@ class ChupWGC:
         self.khoa = threading.Lock()
         self.can = threading.Event()
         self.co = threading.Event()
-        self.khung = None
+        self.khung = None      # ca man hinh (chi khi can, vd F12)
+        self.manh = {}         # (x, y, w, h) -> mang BGRA cua tung vung
+        self.yeu_cau = []      # danh sach vung can sao chep; None = ca man hinh
+        self.da_co = False
         self.dung = False
         cap = None
         self.co_vien = True
@@ -351,13 +364,21 @@ class ChupWGC:
             if self.dung:
                 capture_control.stop()
                 return
-            if self.khung is not None and not self.can.is_set():
+            if self.da_co and not self.can.is_set():
                 return
             buf = getattr(frame, "frame_buffer", None)
             if buf is None:
                 return
+            yc = self.yeu_cau
             with self.khoa:
-                self.khung = np.array(buf, copy=True)
+                if yc is None:
+                    self.khung = np.array(buf, copy=True)
+                    self.manh = {}
+                else:  # chi sao chep dung cac vung can doc (nhe hon ca man hinh rat nhieu)
+                    H, W = buf.shape[:2]
+                    self.manh = {r: np.array(buf[r[1]:r[1] + r[3], r[0]:r[0] + r[2]], copy=True)
+                                 for r in yc if r[0] >= 0 and r[1] >= 0 and r[0] + r[2] <= W and r[1] + r[3] <= H}
+            self.da_co = True
             self.can.clear()
             self.co.set()
 
@@ -374,14 +395,18 @@ class ChupWGC:
             self.dung = True
             raise RuntimeError("không nhận được hình từ Windows Graphics Capture")
 
-    def lam_moi(self):
+    def lam_moi(self, vung=None):
+        self.yeu_cau = None if vung is None else [tuple(int(a) for a in r) for r in vung]
         self.co.clear()
         self.can.set()
         self.co.wait(0.1)
 
     def cat(self, x, y, w, h):
         with self.khoa:
+            m = self.manh.get((x, y, w, h))
             f = self.khung
+        if m is not None:
+            return Image.fromarray(np.ascontiguousarray(m[:, :, 2::-1]))
         if f is None or x < 0 or y < 0 or y + h > f.shape[0] or x + w > f.shape[1]:
             return None
         return Image.fromarray(np.ascontiguousarray(f[y:y + h, x:x + w, 2::-1]))
@@ -418,7 +443,7 @@ class ChupDXGI:
             raise RuntimeError("không tìm thấy màn hình khớp độ phân giải")
         self.khung = None
 
-    def lam_moi(self):
+    def lam_moi(self, vung=None):
         for _ in range(3):
             try:
                 f = self.cam.grab()
@@ -460,9 +485,12 @@ class BoChup:
             except Exception as e:
                 self.ghi_chu.append(str(e))
 
-    def lam_moi(self):
+    def lam_moi(self, cac_vung=None):
+        """cac_vung: danh sach [x, y, w, h] se doc trong vong nay; None = ca man hinh."""
         if self.nguon:
-            self.nguon.lam_moi()
+            tuong_doi = None if cac_vung is None else [
+                (int(v[0]) - self.man["left"], int(v[1]) - self.man["top"], int(v[2]), int(v[3])) for v in cac_vung]
+            self.nguon.lam_moi(tuong_doi)
 
     def cat(self, vung):
         x, y, w, h = [int(v) for v in vung]
@@ -989,6 +1017,225 @@ class BoDich:
             pass
 
 
+# ================================================================ Dich offline (CPU)
+
+MO_HINH_OFFLINE = "quickmt-en-vi"
+TEP_MO_HINH = ["config.json", "source_vocabulary.json", "target_vocabulary.json",
+               "src.spm.model", "tgt.spm.model", "model.bin"]
+
+
+class DichOffline:
+    """Mo hinh quickmt-en-vi (~400 MB) chay bang CTranslate2 tren CPU – dich ~0.05-0.2 giay/cau."""
+
+    def __init__(self):
+        self.thu_muc = os.path.join(DU_LIEU, "mo_hinh", MO_HINH_OFFLINE)
+        self.tr = None
+        self.sp_nguon = self.sp_dich = None
+        self.khoa = threading.Lock()
+        self.trang_thai = "chua_tai"   # chua_tai | dang_tai | dang_nap | san_sang | loi | thieu_thu_vien
+        self.thong_bao = ""
+
+    def san_sang(self):
+        return self.tr is not None
+
+    def da_tai(self):
+        return all(os.path.isfile(os.path.join(self.thu_muc, t)) and os.path.getsize(os.path.join(self.thu_muc, t)) > 0
+                   for t in TEP_MO_HINH)
+
+    @staticmethod
+    def co_thu_vien():
+        try:
+            import ctranslate2  # noqa: F401
+            import sentencepiece  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    def tai(self, bao):
+        self.trang_thai = "dang_tai"
+        os.makedirs(self.thu_muc, exist_ok=True)
+        for ten in TEP_MO_HINH:
+            dich = os.path.join(self.thu_muc, ten)
+            if os.path.isfile(dich) and os.path.getsize(dich) > 0:
+                continue
+            url = f"https://huggingface.co/quickmt/{MO_HINH_OFFLINE}/resolve/main/{ten}"
+            tam = dich + ".part"
+            yc = urllib.request.Request(url, headers={"User-Agent": "DichGame"})
+            with urllib.request.urlopen(yc, timeout=60) as r, open(tam, "wb") as f:
+                tong = int(r.headers.get("Content-Length") or 0)
+                da, pt_cu = 0, -1
+                while True:
+                    khuc = r.read(512 * 1024)
+                    if not khuc:
+                        break
+                    f.write(khuc)
+                    da += len(khuc)
+                    if tong > 1_000_000:
+                        pt = da * 100 // tong
+                        if pt != pt_cu:
+                            pt_cu = pt
+                            bao(f"Đang tải mô hình dịch offline: {pt}% ({da / 1e6:.0f}/{tong / 1e6:.0f} MB)")
+            os.replace(tam, dich)
+
+    def nap(self):
+        import ctranslate2
+        import sentencepiece as spm
+        so_luong = max(2, min(6, (os.cpu_count() or 8) // 4))  # chua CPU cho game
+        tr = ctranslate2.Translator(self.thu_muc, device="cpu", compute_type="int8",
+                                    inter_threads=1, intra_threads=so_luong)
+        self.sp_nguon = spm.SentencePieceProcessor(model_file=os.path.join(self.thu_muc, "src.spm.model"))
+        self.sp_dich = spm.SentencePieceProcessor(model_file=os.path.join(self.thu_muc, "tgt.spm.model"))
+        self.tr = tr
+        self.trang_thai = "san_sang"
+
+    def _giai_ma(self, manh):
+        try:
+            return self.sp_dich.decode(manh)
+        except Exception:
+            return self.sp_dich.decode_pieces(manh)
+
+    def dich_nhieu(self, cac_cau):
+        """Dich tung dong; dong dang "Ten: loi thoai" thi giu ten, chi dich loi thoai."""
+        cac_dong, vi_tri = [], []
+        for i, cau in enumerate(cac_cau):
+            for dong in cau.split("\n"):
+                dong = dong.strip()
+                m = re.match(r"^([A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,2}):\s+(.+)$", dong)
+                ten, noi = (m.group(1), m.group(2)) if m else ("", dong)
+                vi_tri.append((i, ten))
+                cac_dong.append(noi)
+        can = [k for k, d in enumerate(cac_dong) if d]
+        ket = {}
+        if can:
+            with self.khoa:
+                kq = self.tr.translate_batch([self.sp_nguon.encode(cac_dong[k], out_type=str) for k in can],
+                                             beam_size=2, max_decoding_length=256)
+            for k, r in zip(can, kq):
+                ket[k] = self._giai_ma(r.hypotheses[0]).strip()
+        ra = [[] for _ in cac_cau]
+        for k, (i, ten) in enumerate(vi_tri):
+            vi = ket.get(k, "")
+            if vi:
+                ra[i].append(f"{ten}: {vi}" if ten else vi)
+        return ["\n".join(x) for x in ra]
+
+    def dich(self, cau):
+        return self.dich_nhieu([cau])[0]
+
+
+# ================================================================ Giong doc (long tieng)
+
+GIONG = {"vi-VN-NamMinhNeural": "Nam Minh (nam)", "vi-VN-HoaiMyNeural": "Hoài My (nữ)"}
+
+
+class GiongDoc:
+    """Doc ban dich bang giong Microsoft Edge (edge-tts), phat bang MCI cua Windows.
+    Co cau moi thi ngat cau cu. Tuy chon giam tieng game (pycaw) trong luc doc."""
+    BI_DANH = "dichgame_giong"
+
+    def __init__(self, cfg, khi_loi):
+        self.cfg = cfg
+        self.khi_loi = khi_loi
+        self.so = 0
+        self.vol_goc = {}
+        self.da_com = False
+        self.viec = ViecNen(self._lam, khi_loi)
+
+    @staticmethod
+    def co_thu_vien():
+        try:
+            import edge_tts  # noqa: F401
+            return True
+        except Exception:
+            return False
+
+    def doc(self, chu):
+        if not self.cfg.get("giong_doc") or not chu or chu.startswith("["):
+            return
+        noi = "\n".join(re.sub(r"^[A-Z][A-Za-z'.-]*(?: [A-Z][A-Za-z'.-]*){0,2}:\s+", "", d)
+                        for d in chu.split("\n")).strip()
+        if noi:
+            self.so += 1
+            self.viec.gui(self.so, noi)
+
+    def dung(self):
+        self.so += 1  # vong phat dang chay se tu dung
+
+    def _mci(self, lenh):
+        buf = ctypes.create_unicode_buffer(128)
+        ctypes.windll.winmm.mciSendStringW(lenh, buf, 127, None)
+        return buf.value
+
+    def _tao_am(self, chu):
+        import asyncio
+        import edge_tts
+
+        async def chay():
+            toc = int(self.cfg.get("toc_do_giong", 10))
+            com = edge_tts.Communicate(chu, self.cfg.get("giong", "vi-VN-NamMinhNeural"), rate=f"{toc:+d}%")
+            du = bytearray()
+            async for k in com.stream():
+                if k.get("type") == "audio":
+                    du.extend(k.get("data") or b"")
+            return bytes(du)
+
+        return asyncio.run(chay())
+
+    def _lam(self, so, chu):
+        if so != self.so:
+            return
+        am = self._tao_am(chu)
+        if so != self.so or not am:
+            return
+        tep = os.path.join(tempfile.gettempdir(), f"dichgame_giong_{so % 3}.mp3")
+        self._mci(f"close {self.BI_DANH}")
+        with open(tep, "wb") as f:
+            f.write(am)
+        self._mci(f'open "{tep}" type mpegvideo alias {self.BI_DANH}')
+        am_luong = max(0.0, min(1.0, float(self.cfg.get("am_luong_giong", 1.0))))
+        self._mci(f"setaudio {self.BI_DANH} volume to {int(am_luong * 1000)}")
+        self._giam_game()
+        self._mci(f"play {self.BI_DANH}")
+        try:
+            time.sleep(0.05)
+            while so == self.so and self._mci(f"status {self.BI_DANH} mode") == "playing":
+                time.sleep(0.05)
+        finally:
+            self._mci(f"stop {self.BI_DANH}")
+            self._mci(f"close {self.BI_DANH}")
+            if self.viec.viec is None:  # khong con cau nao cho doc -> tra lai tieng game
+                self._tra_game()
+
+    def _giam_game(self):
+        muc = float(self.cfg.get("giam_tieng_game", 1.0))
+        if muc >= 0.999 or self.vol_goc:
+            return
+        try:
+            if not self.da_com:
+                import comtypes
+                comtypes.CoInitialize()
+                self.da_com = True
+            from pycaw.pycaw import AudioUtilities
+            for phien in AudioUtilities.GetAllSessions():
+                tien_trinh = phien.Process
+                if tien_trinh is None or tien_trinh.pid == os.getpid():
+                    continue
+                v = phien.SimpleAudioVolume
+                goc = v.GetMasterVolume()
+                self.vol_goc[tien_trinh.pid] = (v, goc)
+                v.SetMasterVolume(goc * muc, None)
+        except Exception:
+            pass
+
+    def _tra_game(self):
+        for v, goc in list(self.vol_goc.values()):
+            try:
+                v.SetMasterVolume(goc, None)
+            except Exception:
+                pass
+        self.vol_goc = {}
+
+
 # ================================================================ Cap nhat
 
 def _tai_json(url):
@@ -1375,6 +1622,9 @@ class App:
         self.can_toan_man = threading.Event()
         self.dung = threading.Event()
         self.viec_toan_man = ViecNen(self._xu_ly_toan_man, self._loi_nen)
+        self.offline = DichOffline()
+        self.giong = GiongDoc(self.cfg, self._loi_giong)
+        self.nen_claude = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
         self._giao_dien()
         vt = self.cfg.get("vi_tri_bang")
@@ -1382,6 +1632,7 @@ class App:
             self.root.geometry(f"+{int(vt[0])}+{int(vt[1])}")
         self._dang_ky_phim()
         self.root.after(300, lambda: an_khoi_anh_chup(self.root))
+        threading.Thread(target=self._khoi_dong_offline, daemon=True).start()
         threading.Thread(target=self._vong_lap, daemon=True).start()
         for v in self._ds():
             if v["loai"] == "phu_de":
@@ -1524,6 +1775,8 @@ class App:
             side="left", padx=(0, 3))
         self.nut_toan_man_mini = self._nut(self.khung_mini, "", "dich_man_hinh", nho=True)
         self.nut_toan_man_mini.pack(side="left", padx=(0, 3))
+        self.nut_giong_mini = self._nut(self.khung_mini, "", "giong_bat_tat", nho=True)
+        self.nut_giong_mini.pack(side="left", padx=(0, 3))
         self._nut(self.khung_mini, "Thoát", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
 
         # --- thanh chon the
@@ -1559,9 +1812,21 @@ class App:
         self.bien_google = tk.BooleanVar(value=bool(self.cfg["hien_google_truoc"]))
         self._o_chon(t, "Hiện bản Google trước trong lúc chờ Claude (nhanh hơn)", self.bien_google,
                      self._doi_google_truoc).pack(anchor="w", pady=(4, 0))
-        self.bien_chi_google = tk.BooleanVar(value=bool(self.cfg.get("hoi_thoai_chi_google")))
-        self._o_chon(t, "Hội thoại: CHỈ dùng Google (nhanh nhất, dịch kém hay hơn)", self.bien_chi_google,
-                     self._doi_chi_google).pack(anchor="w")
+
+        t = self._the(trai, "Dịch offline (chạy bằng CPU)")
+        self.lbl_offline = self._nhan(t, "", UI_PHU, self._f(9), wraplength=self._p(430), justify="left")
+        self.lbl_offline.pack(anchor="w")
+        self.nut_tai_mo_hinh = self._nut(t, "Tải mô hình quickmt-en-vi (~400 MB)", cmd=self._tai_mo_hinh, nho=True)
+        self.nut_tai_mo_hinh.pack(anchor="w", pady=(4, 2))
+        self._nhan(t, "Hội thoại dịch bằng:", UI_PHU, self._f(9)).pack(anchor="w", pady=(4, 0))
+        h = self._hang(t)
+        khung, self.nut_che_do = self._cap(h, [("offline", "Offline"), ("offline_claude", "Offline + Claude"),
+                                               ("claude", "Claude"), ("google", "Google")],
+                                           lambda g: self.lenh("che_do:" + g))
+        khung.pack(side="left")
+        self.bien_thay = tk.BooleanVar(value=bool(self.cfg.get("thay_bang_claude")))
+        self._o_chon(t, "Đổi sang bản Claude khi có (chữ sẽ đổi 1 lần)", self.bien_thay,
+                     self._doi_thay).pack(anchor="w", pady=(4, 0))
 
         # ---------- Vung dich (danh sach)
         t = self._the(chinh, "Vùng dịch (app tự nhớ)")
@@ -1623,6 +1888,22 @@ class App:
         _, self.lbl_do_rong = cong_tru(t, "Độ rộng:", "rong_giam", "rong_tang")
         self._nhan(t, "Phím: Ctrl+mũi tên dời khung vùng 1 • Ctrl+Shift+mũi tên dời khung vùng 2",
                    UI_PHU, self._f(8), wraplength=self._p(430), justify="left").pack(anchor="w", pady=(4, 0))
+
+        # ---------- Giong doc (the Chinh)
+        t = self._the(chinh, "Giọng đọc (lồng tiếng)")
+        self.nut_giong = self._nut(t, "", "giong_bat_tat")
+        self.nut_giong.pack(fill="x", pady=2)
+        h = self._hang(t)
+        self._nhan(h, "Giọng:", UI_PHU, self._f(9), width=12, anchor="w").pack(side="left")
+        khung, self.nut_chon_giong = self._cap(h, list(GIONG.items()), lambda g: self.lenh("giong:" + g))
+        khung.pack(side="left")
+        _, self.lbl_toc_giong = cong_tru(t, "Tốc độ đọc:", "toc_giong_giam", "toc_giong_tang")
+        _, self.lbl_am_giong = cong_tru(t, "Âm lượng giọng:", "am_giong_giam", "am_giong_tang")
+        h = self._hang(t)
+        self._nhan(h, "Tiếng game khi đọc:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 6))
+        khung, self.nut_giam_game = self._cap(h, [(1.0, "Giữ nguyên"), (0.5, "50%"), (0.25, "25%"), (0.0, "Tắt")],
+                                              lambda g: self.lenh(f"giam_game:{g}"))
+        khung.pack(side="left")
 
         # ---------- Xem vung chup
         t = self._the(trai, "App đang nhìn thấy gì")
@@ -1735,6 +2016,30 @@ class App:
         self.nut_toan_man_mini.config(text=f"Cả màn hình ({p['dich_man_hinh'].upper()})")
         self._dat_mau_nut(self.nut_toan_man_mini, self.toan_man_bat or self.mot_lan_hien)
         self.nut_thu_gon.config(text="▼ Mở rộng" if c.get("thu_gon") else "▲ Thu gọn")
+        gd = bool(c.get("giong_doc"))
+        self.nut_giong.config(text=f"Giọng đọc: {'BẬT' if gd else 'TẮT'}  ({p['bat_tat_giong'].upper()})")
+        self._dat_mau_nut(self.nut_giong, gd)
+        self.nut_giong_mini.config(text=f"Giọng: {'BẬT' if gd else 'TẮT'}")
+        self._dat_mau_nut(self.nut_giong_mini, gd)
+        for g, b in self.nut_chon_giong.items():
+            self._dat_mau_nut(b, c.get("giong") == g)
+        self.lbl_toc_giong.config(text=f"{int(c.get('toc_do_giong', 10)):+d}%")
+        self.lbl_am_giong.config(text=f"{round(float(c.get('am_luong_giong', 1.0)) * 100)}%")
+        for g, b in self.nut_giam_game.items():
+            self._dat_mau_nut(b, abs(g - float(c.get("giam_tieng_game", 1.0))) < 0.01)
+        for g, b in self.nut_che_do.items():
+            self._dat_mau_nut(b, c.get("che_do_hoi_thoai") == g)
+        o = self.offline
+        chu_o = {"san_sang": ("✓ Sẵn sàng – hội thoại được dịch ngay trên máy bằng CPU, không cần mạng.", UI_XANH),
+                 "dang_tai": (o.thong_bao or "Đang tải mô hình...", UI_VANG),
+                 "dang_nap": ("Đang nạp mô hình vào bộ nhớ...", UI_VANG),
+                 "chua_tai": ("Chưa tải mô hình (khoảng 400 MB, chỉ tải 1 lần).", UI_VANG),
+                 "loi": (f"Lỗi: {o.thong_bao}", UI_LOI),
+                 "thieu_thu_vien": ("Thiếu thư viện ctranslate2 / sentencepiece – hãy cập nhật lên bản exe mới.",
+                                    UI_LOI)}.get(o.trang_thai, ("", UI_PHU))
+        self.lbl_offline.config(text=chu_o[0], fg=chu_o[1])
+        self.nut_tai_mo_hinh.config(state="disabled" if o.trang_thai in ("dang_tai", "dang_nap", "san_sang")
+                                    else "normal")
         for m, b in self.nut_the.items():
             self._dat_mau_nut(b, m == c.get("the_dang_mo", "chinh"))
         for g, b in self.nut_co_gd.items():
@@ -1800,9 +2105,46 @@ class App:
             except Exception as e:
                 self._bao(f"Phím tắt '{phim}' không dùng được: {e}", "loi")
 
-    def _doi_chi_google(self):
-        self.cfg["hoi_thoai_chi_google"] = bool(self.bien_chi_google.get())
+    def _doi_thay(self):
+        self.cfg["thay_bang_claude"] = bool(self.bien_thay.get())
         self._luu_cau_hinh()
+
+    def _loi_giong(self, e):
+        self.q.put(("trang_thai", f"Giọng đọc lỗi: {type(e).__name__}: {str(e)[:100]}"))
+
+    # ------------------------------------------------------------ dich offline
+    def _khoi_dong_offline(self, tai=False):
+        o = self.offline
+        if o.san_sang() or o.trang_thai in ("dang_tai", "dang_nap"):
+            return
+        if not o.co_thu_vien():
+            o.trang_thai = "thieu_thu_vien"
+            self.q.put(("offline",))
+            return
+        try:
+            if not o.da_tai():
+                if not tai and not str(self.cfg.get("che_do_hoi_thoai", "")).startswith("offline"):
+                    o.trang_thai = "chua_tai"
+                    self.q.put(("offline",))
+                    return
+
+                def bao(chu):
+                    o.thong_bao = chu
+                    self.q.put(("offline",))
+
+                o.tai(bao)
+            o.trang_thai = "dang_nap"
+            self.q.put(("offline",))
+            o.nap()
+            self.q.put(("offline",))
+            self.q.put(("trang_thai", "Đang chạy • Dịch offline (CPU) đã sẵn sàng"))
+        except Exception as e:
+            o.trang_thai = "loi"
+            o.thong_bao = f"{type(e).__name__}: {str(e)[:120]}"
+            self.q.put(("offline",))
+
+    def _tai_mo_hinh(self):
+        threading.Thread(target=self._khoi_dong_offline, kwargs={"tai": True}, daemon=True).start()
 
     def _doi_google_truoc(self):
         self.cfg["hien_google_truoc"] = bool(self.bien_google.get())
@@ -1942,6 +2284,25 @@ class App:
             self._luu_cau_hinh()
             self.root.after(10, self._ve_lai_giao_dien)
             return
+        elif ten.startswith("che_do:"):
+            c["che_do_hoi_thoai"] = ten[7:]
+            if c["che_do_hoi_thoai"].startswith("offline") and self.offline.trang_thai in ("chua_tai", "loi"):
+                self._tai_mo_hinh()
+        elif ten in ("giong_bat_tat", "bat_tat_giong"):
+            c["giong_doc"] = not c.get("giong_doc")
+            if not c["giong_doc"]:
+                self.giong.dung()
+            elif not self.giong.co_thu_vien():
+                self._bao("Thiếu thư viện edge-tts – hãy cập nhật lên bản exe mới.", "loi")
+        elif ten.startswith("giong:"):
+            c["giong"] = ten[6:]
+        elif ten in ("toc_giong_tang", "toc_giong_giam"):
+            c["toc_do_giong"] = max(-30, min(60, int(c.get("toc_do_giong", 10)) + (10 if ten.endswith("tang") else -10)))
+        elif ten in ("am_giong_tang", "am_giong_giam"):
+            c["am_luong_giong"] = round(max(0.1, min(1.0, float(c.get("am_luong_giong", 1.0))
+                                                     + (0.1 if ten.endswith("tang") else -0.1))), 1)
+        elif ten.startswith("giam_game:"):
+            c["giam_tieng_game"] = float(ten[10:])
         elif ten.startswith("sua:"):
             self.vung_dang_sua = ten[4:]
             self._xem_thu()
@@ -2189,7 +2550,7 @@ class App:
             if mot_lan or lien_tuc:
                 self.can_toan_man.clear()
                 self.lan_toan_man = time.time()
-                sct.lam_moi()
+                sct.lam_moi(None)
                 da_lam_moi = True
                 try:
                     self.viec_toan_man.gui(sct.toan_man(), mot_lan)
@@ -2206,7 +2567,7 @@ class App:
             if not can:
                 continue
             if not da_lam_moi:
-                sct.lam_moi()
+                sct.lam_moi([v["vung"] for v in can])
             for v in can:
                 try:
                     t0 = time.time()
@@ -2303,7 +2664,7 @@ class App:
 
     def _dich_som(self, ma, st, chu):
         try:
-            vi = google_dich(chu)
+            vi = self.offline.dich(chu) if self.offline.san_sang() else google_dich(chu)
         except Exception:
             return
         # chi hien neu chua co ban dich chinh thuc moi hon cho cau nay
@@ -2323,29 +2684,18 @@ class App:
             return self.trang_thai.get(ma) is st and st.chu_da_hien == chu
 
         t_bat_dau = time.time()
-        cu = None if (v["loai"] == "phu_de" and self.cfg.get("hoi_thoai_chi_google")) else self.bo_dich.tim(chu)
+        phu_de = v["loai"] == "phu_de"
+        che_do = self.cfg.get("che_do_hoi_thoai", "offline_claude")
+        if phu_de and che_do in ("offline", "offline_claude", "google"):
+            self._dich_nhanh(v, chu, st, con_dung, che_do, t_bat_dau)
+            return
+        cu = self.bo_dich.tim(chu)
         if cu is not None:
             if con_dung():
                 self.q.put(("hien", ma, cu))
+                if phu_de:
+                    self.giong.doc(cu)
                 self.q.put(("thoi_gian", f"⏱ {v['ten']}: đọc chữ {st.t_doc * 1000:.0f}ms • lấy bản đã lưu"))
-            return
-
-        phu_de = v["loai"] == "phu_de"
-        if phu_de and self.cfg.get("hoi_thoai_chi_google"):
-            cu = self.bo_dich._tim("google", chu)
-            try:
-                vi = cu if cu is not None else google_dich(chu)
-                if cu is None:
-                    self.bo_dich.luu_google(chu, vi)
-            except Exception as e:
-                vi = f"[Không dịch được: {e}]\n" + chu
-                if con_dung():
-                    st.chu_da_hien = ""
-            if con_dung():
-                self.q.put(("hien", ma, self.bo_dich._sua(vi)))
-            self.q.put(("thoi_gian", f"⏱ {v['ten']}: đọc chữ {st.t_doc * 1000:.0f}ms • Google "
-                                     f"{(time.time() - t_bat_dau) * 1000:.0f}ms • tổng từ lúc chữ hiện "
-                                     f"{(time.time() - st.t_doi_chu) * 1000:.0f}ms (chế độ nhanh nhất)"))
             return
         mo_ta = "lời thoại / phụ đề" if phu_de else f"chữ trong khung '{v['ten']}' (nhiệm vụ, menu, thông tin...)"
         do = {"google": None, "claude_dau": None}
@@ -2387,6 +2737,8 @@ class App:
                 st.chu_da_hien = ""
         if ban_dich.strip() and con_dung():
             self.q.put(("hien", ma, ban_dich))
+            if phu_de and nguon != "lỗi":
+                self.giong.doc(ban_dich)
         xong = time.time() - t_bat_dau
         phan = [f"⏱ {v['ten']}: đọc chữ {st.t_doc * 1000:.0f}ms"]
         if do["google"] is not None:
@@ -2397,6 +2749,58 @@ class App:
         if st.t_doi_chu:
             phan.append(f"tổng từ lúc chữ hiện {(time.time() - st.t_doi_chu) * 1000:.0f}ms")
         self.q.put(("thoi_gian", " • ".join(phan)))
+
+    def _dich_nhanh(self, v, chu, st, con_dung, che_do, t0):
+        """Hoi thoai: hien ban dich NGAY (ban Claude da luu > offline > Google), dong bo voi phu de.
+        Che do offline_claude: Claude dich ngam de luu, lan sau gap lai cau do hien ban Claude ngay."""
+        ma = v["id"]
+        vi, nguon = None, ""
+        if che_do == "offline_claude":
+            vi = self.bo_dich.tim(chu)
+            if vi is not None:
+                nguon = "bản Claude đã lưu"
+        if vi is None and che_do in ("offline", "offline_claude") and self.offline.san_sang():
+            try:
+                vi = self.bo_dich._sua(self.offline.dich(chu))
+                nguon = "offline"
+            except Exception as e:
+                self.q.put(("trang_thai", f"Dịch offline lỗi: {e}"))
+        if vi is None:
+            cu = self.bo_dich._tim("google", chu)
+            try:
+                vi = cu if cu is not None else google_dich(chu)
+                if cu is None:
+                    self.bo_dich.luu_google(chu, vi)
+                vi = self.bo_dich._sua(vi)
+                nguon = "Google"
+            except Exception as e:
+                vi = f"[Không dịch được: {type(e).__name__}]\n{chu}"
+                nguon = "lỗi"
+                if con_dung():
+                    st.chu_da_hien = ""
+        if con_dung():
+            self.q.put(("hien", ma, vi))
+            if nguon != "lỗi":
+                self.giong.doc(vi)
+        bay_gio = time.time()
+        phan = [f"⏱ {v['ten']}: đọc chữ {st.t_doc * 1000:.0f}ms", f"{nguon} {(bay_gio - t0) * 1000:.0f}ms"]
+        if st.t_doi_chu:
+            phan.append(f"tổng từ lúc chữ hiện {(bay_gio - st.t_doi_chu) * 1000:.0f}ms")
+        self.q.put(("thoi_gian", " • ".join(phan)))
+
+        if che_do == "offline_claude" and nguon in ("offline", "Google") and self.bo_dich.dung_claude():
+            def claude_ngam():
+                try:
+                    kq, ng, tien, loi = self.bo_dich.dich(chu, ma, "lời thoại / phụ đề")
+                    if tien:
+                        self.q.put(("tien", tien))
+                    if loi:
+                        self.q.put(("trang_thai", loi))
+                    if self.cfg.get("thay_bang_claude") and ng == "Claude" and con_dung():
+                        self.q.put(("hien", ma, kq))
+                except Exception:
+                    pass
+            self.nen_claude.submit(claude_ngam)
 
     # ------------------------------------------------------------ dich ca man hinh
     def _xu_ly_toan_man(self, anh, mot_lan):
@@ -2477,9 +2881,16 @@ class App:
 
         if can_c:  # Claude chay rieng, khong chan lan quet sau
             threading.Thread(target=self._claude_toan_man, args=(can_c, mot_lan), daemon=True).start()
-        if can_g:  # Google hien ngay (song song)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-                ket_qua = list(ex.map(self._google_an_toan, [d["en"] for d in can_g]))
+        if can_g:  # offline (neu co) hoac Google hien ngay
+            ket_qua = None
+            if self.offline.san_sang():
+                try:
+                    ket_qua = [self.bo_dich._sua(x) for x in self.offline.dich_nhieu([d["en"] for d in can_g])]
+                except Exception:
+                    ket_qua = None
+            if ket_qua is None:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+                    ket_qua = list(ex.map(self._google_an_toan, [d["en"] for d in can_g]))
             with self.khoa_tm:
                 for d, vi in zip(can_g, ket_qua):
                     d["dang_g"] = False
@@ -2521,6 +2932,8 @@ class App:
                     self._ve_lai()
                 elif loai == "tien":
                     self.cfg["da_dung_usd"] = round(self.cfg["da_dung_usd"] + tin[1], 6)
+                    self._cap_nhat_nut()
+                elif loai == "offline":
                     self._cap_nhat_nut()
                 elif loai == "thoi_gian":
                     self.lbl_tg.config(text=tin[1])
@@ -2604,6 +3017,13 @@ class App:
         self.ep_dich.set()
         try:
             self.cfg["vi_tri_bang"] = [self.root.winfo_x(), self.root.winfo_y()]
+        except Exception:
+            pass
+        try:
+            self.giong.dung()
+            time.sleep(0.15)
+            self.giong._tra_game()
+            self.nen_claude.shutdown(wait=False)
         except Exception:
             pass
         try:

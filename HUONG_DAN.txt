@@ -1,4 +1,4 @@
-DỊCH GAME v6.1.3 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.2.0 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -54,6 +54,26 @@ DỊCH CẢ MÀN HÌNH (F12)
   - Chơi trên Steam: F12 cũng là phím chụp ảnh của Steam. Đổi phím "dich_man_hinh"
     trong cau_hinh.json (thư mục dữ liệu) nếu thấy phiền, ví dụ "ctrl+f12".
 
+DỊCH OFFLINE (CPU) – thẻ Cài đặt
+  - Lần đầu mở bản 6.2.0, app tự tải mô hình quickmt-en-vi (~400 MB) vào thư mục dữ liệu.
+    Xong sẽ báo "✓ Sẵn sàng". Mỗi câu dịch ~0,1 giây ngay trên máy, không cần mạng.
+  - "Hội thoại dịch bằng":
+      • Offline: nhanh nhất, miễn phí.
+      • Offline + Claude (mặc định): hiện bản offline ngay; Claude dịch ngầm và lưu lại,
+        lần sau gặp lại câu đó sẽ hiện bản Claude (hay hơn) ngay lập tức.
+      • Claude: dịch hay nhất nhưng chậm hơn (~1 giây).  • Google: miễn phí, cần mạng.
+  - "Đổi sang bản Claude khi có": bật thì chữ đang hiện sẽ đổi 1 lần sang bản Claude.
+
+GIỌNG ĐỌC (LỒNG TIẾNG) – thẻ Chính
+  - Đọc to bản dịch vùng phụ đề/hội thoại. Câu mới sẽ ngắt câu đang đọc.
+  - Giọng: Nam Minh (nam) / Hoài My (nữ) – giọng AI của Microsoft, cần mạng.
+  - Tốc độ đọc −/+ (đọc nhanh hơn để theo kịp game), Âm lượng giọng −/+.
+  - Tiếng game khi đọc: Giữ nguyên / 50% / 25% / Tắt – app tự giảm tiếng các ứng dụng khác
+    (game) trong lúc đọc rồi trả lại như cũ.
+    Nếu app bị tắt đột ngột lúc đang đọc mà tiếng game vẫn nhỏ: chuột phải biểu tượng loa
+    góc phải dưới màn hình > Open volume mixer > kéo lại âm lượng game.
+  - Tắt hẳn giọng: nút "Giọng đọc: BẬT/TẮT" hoặc Ctrl+Shift+V.
+
 TỐC ĐỘ DỊCH HỘI THOẠI
   - Dòng chữ nhỏ dưới thanh trạng thái (⏱) cho biết thời gian từng bước:
     đọc chữ • Google • Claude chữ đầu • xong • tổng từ lúc phụ đề hiện.
@@ -78,6 +98,7 @@ PHÍM TẮT
   F10         ẩn / hiện bản dịch
   F11         chỉnh khung bằng chuột (kéo = di chuyển, góc ◢ = độ rộng, lăn chuột = cỡ chữ)
   F12         dịch cả màn hình
+  Ctrl+Shift+V  bật / tắt giọng đọc
   Ctrl + mũi tên          dời khung dịch vùng 1
   Ctrl + Shift + mũi tên  dời khung dịch vùng 2
   Ctrl + Shift + Q        thoát

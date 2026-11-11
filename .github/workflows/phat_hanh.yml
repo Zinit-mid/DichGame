@@ -52,7 +52,7 @@ jobs:
           python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame
           --icon icon.ico --add-data "icon.ico;."
           --collect-all winocr --collect-all winrt --collect-all windows_capture
-          --collect-all bettercam --collect-all dxcam --collect-all comtypes
+          --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw
           dich_game.py
 
       - name: Tao goi phat hanh

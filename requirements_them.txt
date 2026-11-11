@@ -2,3 +2,8 @@ windows-capture
 bettercam
 dxcam
 comtypes
+ctranslate2
+sentencepiece
+edge-tts
+pycaw
+psutil

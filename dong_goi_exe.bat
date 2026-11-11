@@ -6,7 +6,7 @@ echo [1/3] Cai thu vien va cong cu dong goi...
 %PY% -m pip install -r requirements.txt pyinstaller
 for /f "usebackq delims=" %%p in ("requirements_them.txt") do %PY% -m pip install %%p
 echo [2/3] Dong goi DichGame.exe (mat 1-3 phut)...
-%PY% -m PyInstaller --noconfirm --onefile --noconsole --name DichGame --icon icon.ico --add-data "icon.ico;." --collect-all winocr --collect-all winrt --collect-all windows_capture --collect-all bettercam --collect-all dxcam --collect-all comtypes dich_game.py
+%PY% -m PyInstaller --noconfirm --onefile --noconsole --name DichGame --icon icon.ico --add-data "icon.ico;." --collect-all winocr --collect-all winrt --collect-all windows_capture --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw dich_game.py
 if errorlevel 1 (
   echo Dong goi bi loi. Chup man hinh cua so nay gui nguoi viet app.
   pause
