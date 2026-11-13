@@ -582,6 +582,51 @@ class ViecDich:
             return False
         return not self.cau_can_dich()
 
+    # ---------------------------------------------------------- long tieng Kliff (thu nghiem)
+    def trich_giong_kliff(self, thu_muc_ra, bao=lambda s: None):
+        """Lay toan bo cau thoai Kliff (tieng Anh) ra thu_muc_ra/goc/*.wem + danh_sach.csv
+        (ten file, cau tieng Anh, ban Viet hoa neu co). Chi DOC file game."""
+        import csv
+        nhom_am = os.path.join(self.thu_muc_game, "0006")
+        if not os.path.isfile(os.path.join(nhom_am, "0.pamt")):
+            raise LoiDung("không thấy thư mục âm thanh tiếng Anh (0006) trong thư mục game")
+        bao("Đang đọc danh sách file âm thanh...")
+        ds = [f for f in cd.doc_pamt_day_du(os.path.join(nhom_am, "0.pamt"))
+              if f["duoi"] == ".wem" and f["ten"].startswith("unique_kliff_")]
+        cau = {}
+        for g in self.nhom.values():
+            for _, k, v in g["ds"]:
+                cau[k.lower()] = v
+        os.makedirs(os.path.join(thu_muc_ra, "goc"), exist_ok=True)
+        os.makedirs(os.path.join(thu_muc_ra, "wav_tieng_viet"), exist_ok=True)
+        dong, mau, loi = [], None, 0
+        for i, f in enumerate(ds):
+            try:
+                b = cd.doc_tep(nhom_am, f)
+            except Exception:
+                loi += 1
+                continue
+            with open(os.path.join(thu_muc_ra, "goc", f["ten"] + ".wem"), "wb") as fh:
+                fh.write(b)
+            tt = cd.thong_tin_wem(b)
+            if mau is None and tt:
+                mau = tt
+            en = cau.get(f["ten"][len("unique_kliff_"):], "")
+            dong.append([f["ten"], f["thu_muc"], f"{tt.get('giay', 0):.2f}", en,
+                         self.bo_nho.get(en, "") if en else ""])
+            if i % 200 == 0:
+                bao(f"Đang lấy giọng Kliff... {i}/{len(ds)}")
+        dong.sort(key=lambda x: x[0])
+        with open(os.path.join(thu_muc_ra, "danh_sach.csv"), "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.writer(fh)
+            w.writerow(["ten_file", "thu_muc_trong_game", "giay", "tieng_anh", "tieng_viet"])
+            w.writerows(dong)
+        with open(os.path.join(thu_muc_ra, "DOC_TRUOC.txt"), "w", encoding="utf-8") as fh:
+            fh.write("Thư mục goc: giọng Kliff gốc (Wwise .wem) lấy từ game – chỉ để thử, không chia sẻ.\n"
+                     "danh_sach.csv: tên file, độ dài (giây), câu tiếng Anh, bản Việt hóa.\n"
+                     "wav_tieng_viet: đặt file WAV tiếng Việt cùng tên (VD unique_kliff_xxx.wav) để đóng gói.\n")
+        return {"so": len(dong), "co_viet": sum(1 for x in dong if x[4]), "loi": loi, "mau": mau or {}}
+
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
         tam = os.path.join(THU_MUC_CD, "goi_tam")

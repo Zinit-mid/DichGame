@@ -236,6 +236,81 @@ def doc_pamt(duong_dan):
         o += 20
     return ds
 
+def doc_pamt_day_du(duong_dan):
+    """Moi file kem thu muc, duoi file, kieu nen/ma hoa (nhom nhieu thu muc, VD 0006 am thanh)."""
+    d = open(duong_dan, "rb").read()
+    o = 4
+    so_paz = struct.unpack_from("<I", d, o)[0]; o += 12
+    for i in range(so_paz):
+        o += 8 + (4 if i < so_paz - 1 else 0)
+    co = struct.unpack_from("<I", d, o)[0]; o += 4
+    nut_tm, duong_tm, o = _cay(d, o, co)
+    co = struct.unpack_from("<I", d, o)[0]; o += 4
+    nut, duong, o = _cay(d, o, co)
+    so_tm = struct.unpack_from("<I", d, o)[0]; o += 8
+    cac_tm = [struct.unpack_from("<IIII", d, o + 16 * i) for i in range(so_tm)]
+    o += so_tm * 16
+    ds = []
+    while o + 20 <= len(d):
+        ten, vt, nen, goc, co_bit = struct.unpack_from("<IIIII", d, o)
+        if ten not in nut:
+            break
+        ds.append({"ten": duong(ten), "vt": vt, "nen": nen, "goc": goc, "paz": co_bit & 0xFFFF,
+                   "kieu_nen": (co_bit >> 16) & 0x0F, "ma_hoa": (co_bit >> 20) & 0x0F, "duoi_so": co_bit >> 24})
+        o += 20
+    duoi = [""]
+    if o + 4 <= len(d):
+        duoi = d[o + 4:].split(b"\x00")
+        duoi = [x.decode("ascii", "replace") for x in duoi]
+    for nut_tm_vt, dau, so, _ in cac_tm:
+        if so and nut_tm_vt in nut_tm:
+            tm = duong_tm(nut_tm_vt)
+            for f in ds[dau:dau + so]:
+                f["thu_muc"] = tm
+    for f in ds:
+        f.setdefault("thu_muc", "")
+        f["duoi"] = duoi[f["duoi_so"]] if f["duoi_so"] < len(duoi) else ""
+    return ds
+
+
+def doc_tep(thu_muc_nhom, f):
+    """Doc noi dung 1 file trong nhom (giai nen LZ4 neu can; file ma hoa thi giai ma theo ten)."""
+    with open(os.path.join(thu_muc_nhom, f"{f['paz']}.paz"), "rb") as fh:
+        fh.seek(f["vt"])
+        b = fh.read(f["nen"])
+    if f["ma_hoa"]:
+        b = chacha20(b, f["ten"] + f.get("duoi", ""))
+    if f["kieu_nen"] == 2:
+        b = lz4_giai_nen(b, f["goc"])
+    return b
+
+
+def thong_tin_wem(b):
+    """RIFF Wwise: -> dict(ma_codec, kenh, tan_so, giay)"""
+    kq = {}
+    if b[:4] not in (b"RIFF", b"RIFX"):
+        return kq
+    o = 12
+    while o + 8 <= len(b):
+        ten, co = b[o:o + 4], struct.unpack_from("<I", b, o + 4)[0]
+        if ten == b"fmt ":
+            ma, kenh, tan_so, bps = struct.unpack_from("<HHII", b, o + 8)
+            kq.update(ma_codec=ma, kenh=kenh, tan_so=tan_so, bps=bps)
+            if ma == 0xFFFF and co >= 0x18 + 4:
+                try:
+                    kq["mau"] = struct.unpack_from("<I", b, o + 8 + 0x18)[0]
+                except struct.error:
+                    pass
+        o += 8 + co + (co & 1)
+    if kq.get("mau") and kq.get("tan_so"):
+        kq["giay"] = kq["mau"] / kq["tan_so"]
+    elif kq.get("bps"):
+        kq["giay"] = (len(b) - 44) / kq["bps"]
+    kq["ten_codec"] = {0xFFFF: "Wwise Vorbis", 0xFFFE: "PCM", 0x0002: "ADPCM", 0x3041: "Opus"}.get(
+        kq.get("ma_codec"), hex(kq.get("ma_codec", 0)))
+    return kq
+
+
 # ------------------------------------------------------------------ PALOC
 
 def mo_boc(ban_giai_ma):

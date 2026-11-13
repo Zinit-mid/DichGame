@@ -916,6 +916,10 @@ class App:
         self.cd_nut_chay.pack(side="left")
         self._nut(hang2, "Tạm dừng", self._cd_dung).pack(side="left", padx=6)
         self._nut(hang2, "Xuất gói cho DMM", lambda: self._cd_xuat(g)).pack(side="left")
+        hang3 = tk.Frame(w, bg=UI_NEN)
+        hang3.pack(fill="x", pady=(2, 6))
+        self._nut(hang3, "Lồng tiếng Kliff – trích file giọng (thử)", lambda: self._cd_trich_giong(g),
+                  nho=True).pack(side="left")
         self.cd_tien_do = nhan("", UI_VANG, 10)
         self.cd_tien_do.pack(fill="x", pady=(6, 0))
         self.cd_viec = None
@@ -1048,6 +1052,35 @@ class App:
             except Exception as e:
                 self.q.put(("goi", lambda e=e: self.cd_tien_do.config(text=f"Lỗi xuất gói: {e}", fg=UI_LOI)))
         threading.Thread(target=xuat, daemon=True).start()
+
+    def _cd_trich_giong(self, g):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        ra = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff")
+        viec = self.cd_viec
+        self.cd_dang_chay = True
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            try:
+                kq = viec.trich_giong_kliff(ra, bao)
+                m = kq["mau"]
+                chu = (f"Đã lấy {kq['so']:,} câu thoại Kliff ({kq['co_viet']:,} câu đã có bản Việt hóa) "
+                       f"ra Desktop\\LongTieng_Kliff.\n"
+                       f"Định dạng giọng gốc: {m.get('ten_codec', '?')} • {m.get('tan_so', '?')} Hz • "
+                       f"{m.get('kenh', '?')} kênh. Chụp dòng này gửi Claude.").replace(",", ".")
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+                try:
+                    subprocess.Popen(["explorer", ra])
+                except Exception:
+                    pass
+            except Exception as e:
+                bao(f"Lỗi trích giọng: {e}")
+            finally:
+                self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
+        threading.Thread(target=chay, daemon=True).start()
 
     def _dong_cd(self, w):
         if self.cd_dang_chay and self.cd_viec is not None:
