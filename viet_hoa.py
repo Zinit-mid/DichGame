@@ -920,6 +920,8 @@ class App:
         hang3.pack(fill="x", pady=(2, 6))
         self._nut(hang3, "Lồng tiếng Kliff – trích file giọng (thử)", lambda: self._cd_trich_giong(g),
                   nho=True).pack(side="left")
+        self._nut(hang3, "Đóng gói giọng Việt cho DMM (thử)", lambda: self._cd_dong_giong(g),
+                  nho=True).pack(side="left", padx=6)
         self.cd_tien_do = nhan("", UI_VANG, 10)
         self.cd_tien_do.pack(fill="x", pady=(6, 0))
         self.cd_viec = None
@@ -1078,6 +1080,37 @@ class App:
                     pass
             except Exception as e:
                 bao(f"Lỗi trích giọng: {e}")
+            finally:
+                self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _cd_dong_giong(self, g):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        import viet_hoa_cd as vcd
+        thu = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff")
+        wwise = vcd.ViecDich.tim_wwise_console()
+        if not wwise:
+            p = self.filedialog.askopenfilename(title="Chọn WwiseConsole.exe (trong thư mục cài Wwise\\Authoring\\x64\\Release\\bin)",
+                                                filetypes=[("WwiseConsole.exe", "WwiseConsole.exe")])
+            if not p:
+                return
+            wwise = p
+        zip_ra = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff_DMM.zip")
+        viec = self.cd_viec
+        self.cd_dang_chay = True
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            try:
+                dong = viec.dong_goi_giong(thu, zip_ra, wwise, bao)
+                chu = ("Đã tạo Desktop\\LongTieng_Kliff_DMM.zip – Import vào DMM, bật, Mount Mods rồi vào game nghe thử.\n"
+                       + "\n".join(dong[:12]))
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+            except Exception as e:
+                bao(f"Lỗi đóng gói giọng: {e}")
             finally:
                 self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
         threading.Thread(target=chay, daemon=True).start()

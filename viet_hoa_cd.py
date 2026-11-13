@@ -627,6 +627,163 @@ class ViecDich:
                      "wav_tieng_viet: đặt file WAV tiếng Việt cùng tên (VD unique_kliff_xxx.wav) để đóng gói.\n")
         return {"so": len(dong), "co_viet": sum(1 for x in dong if x[4]), "loi": loi, "mau": mau or {}}
 
+    # ---------------------------------------------------------- dong goi giong Viet (Wwise)
+    @staticmethod
+    def tim_wwise_console():
+        """Tim WwiseConsole.exe: bien WWISEROOT, cac thu muc cai mac dinh tren moi o dia."""
+        import glob
+        ung_vien = []
+        goc = os.environ.get("WWISEROOT")
+        if goc:
+            ung_vien.append(os.path.join(goc, "Authoring", "x64", "Release", "bin", "WwiseConsole.exe"))
+        for o in "CDEFGH":
+            for mau in (rf"{o}:\Program Files (x86)\Audiokinetic\*\Authoring\x64\Release\bin\WwiseConsole.exe",
+                        rf"{o}:\Program Files\Audiokinetic\*\Authoring\x64\Release\bin\WwiseConsole.exe",
+                        rf"{o}:\Audiokinetic\*\Authoring\x64\Release\bin\WwiseConsole.exe",
+                        rf"{o}:\*\Audiokinetic\*\Authoring\x64\Release\bin\WwiseConsole.exe"):
+                ung_vien += sorted(glob.glob(mau), reverse=True)
+        for p in ung_vien:
+            if os.path.isfile(p):
+                return p
+        return None
+
+    @staticmethod
+    def chuan_wav(nguon, dich, tan_so=48000):
+        """WAV bat ky (PCM 16/24/32 bit, float, stereo) -> PCM 16 bit mono 48 kHz. -> so giay."""
+        import wave
+        import numpy as np
+        with open(nguon, "rb") as f:
+            b = f.read()
+        if b[:4] != b"RIFF" or b[8:12] != b"WAVE":
+            raise ValueError(f"{os.path.basename(nguon)} không phải file WAV")
+        o, fmt, data = 12, None, None
+        while o + 8 <= len(b):
+            ten, co = b[o:o + 4], int.from_bytes(b[o + 4:o + 8], "little")
+            if ten == b"fmt ":
+                fmt = b[o + 8:o + 8 + co]
+            elif ten == b"data":
+                data = b[o + 8:o + 8 + co]
+            o += 8 + co + (co & 1)
+        if not fmt or data is None:
+            raise ValueError(f"{os.path.basename(nguon)}: WAV hỏng")
+        ma, kenh, ts = int.from_bytes(fmt[0:2], "little"), int.from_bytes(fmt[2:4], "little"), \
+            int.from_bytes(fmt[4:8], "little")
+        bit = int.from_bytes(fmt[14:16], "little")
+        if ma == 0xFFFE and len(fmt) >= 26:
+            ma = int.from_bytes(fmt[24:26], "little")
+        if ma == 3:
+            x = np.frombuffer(data[:len(data) // 4 * 4], dtype="<f4").astype(np.float64)
+        elif bit == 16:
+            x = np.frombuffer(data[:len(data) // 2 * 2], dtype="<i2") / 32768.0
+        elif bit == 24:
+            a = np.frombuffer(data[:len(data) // 3 * 3], dtype=np.uint8).reshape(-1, 3).astype(np.int32)
+            v = a[:, 0] | (a[:, 1] << 8) | (a[:, 2] << 16)
+            x = np.where(v >= 1 << 23, v - (1 << 24), v) / float(1 << 23)
+        elif bit == 32:
+            x = np.frombuffer(data[:len(data) // 4 * 4], dtype="<i4") / float(1 << 31)
+        else:
+            raise ValueError(f"{os.path.basename(nguon)}: WAV {bit} bit chưa hỗ trợ")
+        if kenh > 1:
+            x = x[:len(x) // kenh * kenh].reshape(-1, kenh).mean(axis=1)
+        if ts != tan_so and len(x):
+            n = int(round(len(x) * tan_so / ts))
+            x = np.interp(np.linspace(0, len(x) - 1, n), np.arange(len(x)), x)
+        x = np.clip(x, -1, 1)
+        with wave.open(dich, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(tan_so)
+            w.writeframes((x * 32767).astype("<i2").tobytes())
+        return len(x) / tan_so
+
+    def dong_goi_giong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None):
+        """thu_muc/wav_tieng_viet/<ten>.wav -> WwiseConsole (Vorbis) -> .wem -> zip DMM."""
+        import csv
+        import shutil
+        import subprocess
+        import xml.sax.saxutils as xs
+        wwise = wwise or self.tim_wwise_console()
+        if not wwise:
+            raise LoiDung("không tìm thấy Wwise (WwiseConsole.exe) – cài Wwise bằng Audiokinetic Launcher")
+        thu_wav = os.path.join(thu_muc, "wav_tieng_viet")
+        wavs = sorted(f for f in os.listdir(thu_wav) if f.lower().endswith(".wav")) if os.path.isdir(thu_wav) else []
+        if not wavs:
+            raise LoiDung("chưa có file WAV nào trong LongTieng_Kliff\\wav_tieng_viet")
+        do_dai = {}
+        try:
+            with open(os.path.join(thu_muc, "danh_sach.csv"), encoding="utf-8-sig") as f:
+                for d in csv.DictReader(f):
+                    do_dai[d["ten_file"]] = float(d.get("giay") or 0)
+        except Exception:
+            pass
+        tam = os.path.join(THU_MUC_CD, "wwise_tam")
+        shutil.rmtree(tam, ignore_errors=True)
+        nguon = os.path.join(tam, "nguon")
+        os.makedirs(nguon)
+        bao_cao = []
+        bo_qua = []
+        for w in wavs:
+            ten = os.path.splitext(w)[0].strip()
+            if do_dai and ten not in do_dai:
+                bo_qua.append(f"✗ {w}: tên file không khớp câu nào của Kliff – đổi tên giống file trong thư mục goc")
+                continue
+            giay = self.chuan_wav(os.path.join(thu_wav, w), os.path.join(nguon, ten + ".wav"))
+            goc = do_dai.get(ten)
+            bao_cao.append((ten, giay, goc))
+        if not bao_cao:
+            raise LoiDung("không có file WAV nào đặt đúng tên: " + "; ".join(bo_qua[:3]))
+        bao("Đang tạo project Wwise tạm...")
+        an = 0x08000000 if os.name == "nt" else 0
+        du_an = os.path.join(tam, "VH", "VH.wproj")
+        nhat_ky = open(os.path.join(thu_muc, "wwise_nhat_ky.txt"), "w", encoding="utf-8", errors="replace")
+        try:
+            r = subprocess.run([wwise, "create-new-project", du_an, "--platform", "Windows", "--quiet"],
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=600)
+            nhat_ky.write(r.stdout.decode("utf-8", "replace"))
+            if not os.path.isfile(du_an):
+                raise LoiDung("Wwise không tạo được project tạm – xem LongTieng_Kliff\\wwise_nhat_ky.txt")
+            ra_wem = os.path.join(tam, "ra")
+            for chuyen_doi in ("Vorbis Quality High", None):
+                ds = "\n".join(
+                    f'  <Source Path="{xs.escape(t)}.wav"'
+                    + (f' Conversion="{chuyen_doi}"' if chuyen_doi else "")
+                    + f' Destination="{xs.escape(t)}.wem"/>' for t, _, _ in bao_cao)
+                with open(os.path.join(tam, "ds.wsources"), "w", encoding="utf-8") as f:
+                    f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                            f'<ExternalSourcesList SchemaVersion="1" Root="{xs.escape(nguon)}">\n{ds}\n'
+                            '</ExternalSourcesList>\n')
+                bao(f"Wwise đang mã hóa {len(bao_cao)} câu ({chuyen_doi or 'cài đặt mặc định'})...")
+                shutil.rmtree(ra_wem, ignore_errors=True)
+                r = subprocess.run([wwise, "convert-external-source", du_an, "--platform", "Windows",
+                                    "--source-file", os.path.join(tam, "ds.wsources"), "--output", ra_wem],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=1800)
+                nhat_ky.write(f"\n===== {chuyen_doi} =====\n" + r.stdout.decode("utf-8", "replace"))
+                co = {}
+                for g, _, ts in os.walk(ra_wem):
+                    for t in ts:
+                        if t.lower().endswith(".wem"):
+                            co[os.path.splitext(t)[0]] = os.path.join(g, t)
+                if co and all(cd.thong_tin_wem(open(p, "rb").read()).get("ma_codec") == 0xFFFF
+                              for p in co.values()):
+                    break
+            if not co:
+                raise LoiDung("Wwise không tạo ra file .wem – xem LongTieng_Kliff\\wwise_nhat_ky.txt")
+        finally:
+            nhat_ky.close()
+        dong = []
+        with zipfile.ZipFile(duong_dan_zip, "w", zipfile.ZIP_DEFLATED) as z:
+            for ten, giay, goc in bao_cao:
+                p = co.get(ten)
+                if not p:
+                    dong.append(f"✗ {ten}: Wwise không mã hóa được")
+                    continue
+                tt = cd.thong_tin_wem(open(p, "rb").read())
+                z.write(p, f"LongTieng_Kliff/0006/sound/windows/english(us)/{ten}.wem")
+                lech = f" (gốc {goc:.1f}s)" if goc else " (không thấy tên này trong danh sách!)"
+                dong.append(f"✓ {ten}: {giay:.1f}s{lech} • {tt.get('ten_codec')} {tt.get('tan_so')} Hz")
+        shutil.rmtree(tam, ignore_errors=True)
+        return dong + bo_qua
+
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
         tam = os.path.join(THU_MUC_CD, "goi_tam")

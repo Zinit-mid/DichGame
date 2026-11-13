@@ -1,7 +1,8 @@
-## Dịch Game v6.3.1
+## Dịch Game v6.3.2
 
-**Lồng tiếng Kliff – bước thử nghiệm 1**
-- Trong cửa sổ Việt hóa Crimson Desert có nút **"Lồng tiếng Kliff – trích file giọng (thử)"**
-- Lấy toàn bộ ~2.600 câu thoại của Kliff ra Desktop\LongTieng_Kliff: file giọng gốc, bảng câu tiếng Anh + bản Việt hóa, độ dài từng câu
-- Hiện định dạng giọng của game (codec, tần số) để chuẩn bị bước tạo giọng tiếng Việt
-- Chỉ đọc file game, không sửa gì
+**Lồng tiếng Kliff – bước thử nghiệm 2**
+- Nút **"Đóng gói giọng Việt cho DMM (thử)"** trong cửa sổ Việt hóa Crimson Desert
+- Lấy các file WAV trong Desktop\LongTieng_Kliff\wav_tieng_viet (đặt tên giống file giọng gốc)
+- Tự chuyển về 48 kHz mono, gọi Wwise mã hóa sang Wwise Vorbis giống giọng gốc của game
+- Xuất Desktop\LongTieng_Kliff_DMM.zip để nhập vào DMM
+- Tự tìm Wwise đã cài; không tìm thấy thì hỏi chọn WwiseConsole.exe
