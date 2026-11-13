@@ -133,9 +133,10 @@ class LoiDung(Exception):
 class Claude:
     MAY_CHU = "api.anthropic.com"
 
-    def __init__(self, khoa, mo_hinh=MO_HINH):
+    def __init__(self, khoa, mo_hinh=MO_HINH, huong_dan=None):
         self.khoa = khoa
         self.mo_hinh = mo_hinh
+        self.huong_dan = huong_dan or HUONG_DAN
         self.kieu = None
         self.rieng = threading.local()
 
@@ -152,7 +153,7 @@ class Claude:
         return c
 
     def goi(self, noi_dung, max_tokens):
-        body = json.dumps({"model": self.mo_hinh, "max_tokens": max_tokens, "system": HUONG_DAN,
+        body = json.dumps({"model": self.mo_hinh, "max_tokens": max_tokens, "system": self.huong_dan,
                            "messages": [{"role": "user", "content": noi_dung}]}).encode("utf-8")
         for lan in range(6):
             for kieu in ([self.kieu] if self.kieu else ["x-api-key", "bearer"]):
@@ -517,7 +518,7 @@ class ViecDich:
 
     def chay(self, khoa_claude, gioi_han_usd, bao, tien_do):
         gia, mo_hinh = doc_gia()
-        claude = Claude(khoa_claude, mo_hinh)
+        claude = Claude(khoa_claude, mo_hinh, getattr(self, "HUONG_DAN", None))
         ds = self.cau_can_dich()
         tong = len(ds)
         if not tong:

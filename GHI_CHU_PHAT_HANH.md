@@ -1,3 +1,11 @@
+## Dịch Game v6.7.0
+
+- Mới: Việt hóa Rise of the Tomb Raider – chọn game trong Thư viện → nút "Việt hóa Rise of the Tomb Raider"
+  - Bước 1: cài gói thử (chỉ đổi chữ menu) để kiểm tra font có hiện dấu tiếng Việt không
+  - Bước 2: dịch toàn bộ chữ của game bằng Claude hoặc Offline (giữ tên riêng, lưu lại để lần sau chỉ dịch câu mới)
+  - Bước 3: cài Việt hóa có dấu hoặc không dấu; gỡ 1 chạm
+  - Không sửa file gốc của game: app tạo 1 gói mới bigfile._mod.viethoa_dichgame (theo cách của TR Reboot Mod Tools)
+
 ## Dịch Game v6.6.0 – giao diện mới
 
 - Giao diện mới 3 cột, nền tối:

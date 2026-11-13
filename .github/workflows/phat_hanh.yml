@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: >
           python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame
-          --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import crimson_desert --collect-submodules cryptography
+          --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import viet_hoa_rottr --hidden-import crimson_desert --collect-submodules cryptography
           --collect-all winocr --collect-all winrt --collect-all windows_capture
           --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw
           dich_game.py
