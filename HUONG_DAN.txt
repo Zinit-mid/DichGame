@@ -1,4 +1,4 @@
-DỊCH GAME v6.2.3 – HƯỚNG DẪN (Windows 10/11)
+DỊCH GAME v6.3.0 – HƯỚNG DẪN (Windows 10/11)
 ========================================
 
 CÀI ĐẶT LẦN ĐẦU
@@ -122,3 +122,9 @@ LỖI THƯỜNG GẶP
   - Phím tắt không ăn trong game: chuột phải DichGame.exe > Run as administrator.
   - Viền vàng quanh màn hình: bấm "Cách chụp" chọn DXGI, tắt rồi mở lại app.
   - Khung xem vùng chụp thấy Desktop thay vì game: đổi "Cách chụp", mở lại app.
+
+VIỆT HÓA GAME (gộp từ app Việt Hóa Game)
+  - Thẻ Điều khiển -> "Việt hóa game (dịch thẳng chữ trong game)…".
+  - Crimson Desert: bấm "Việt hóa bằng Claude" -> chọn Đợt 1/2/3 -> chọn máy dịch -> Bắt đầu dịch
+    -> Xuất gói cho DMM (file zip ở Desktop) -> nhập vào DMM -> Mount Mods. Ngôn ngữ game để English.
+  - Khi dịch màn hình, câu nào đã có trong bản Việt hóa thì app hiện luôn bản đó (miễn phí).

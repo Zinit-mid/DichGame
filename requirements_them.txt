@@ -7,3 +7,4 @@ sentencepiece
 edge-tts
 pycaw
 psutil
+cryptography

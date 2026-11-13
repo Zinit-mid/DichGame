@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.2.3"
+APP_VERSION = "6.3.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -875,6 +875,61 @@ class ClaudeDich:
         return ket_qua, vao, ra
 
 
+FILE_VIET_HOA = os.path.join(os.environ.get("APPDATA") or THU_MUC_APP, "VietHoaGame", "crimson_desert",
+                             "bo_nho_dich.json")
+
+
+def chuan_hoa_vh(s):
+    """Khoa so khop giua chu OCR tren man hinh va cau goc trong file game."""
+    s = re.sub(r"<[^<>]*>|\{[^{}]*\}|\[EMPTY\]", " ", s)
+    s = s.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+    return " ".join(re.sub(r"[^0-9a-zA-Z' ]+", " ", s).lower().split())
+
+
+class BoNhoVietHoa:
+    """Ban dich cua Viet hoa game (cung may): cau nao co thi app dung luon, mien phi, giong het trong game."""
+
+    def __init__(self):
+        self.m = {}
+        self.mtime = None
+        self.lan_xem = 0
+
+    def _nap(self):
+        if time.time() - self.lan_xem < 30:
+            return
+        self.lan_xem = time.time()
+        try:
+            mt = os.path.getmtime(FILE_VIET_HOA)
+        except OSError:
+            self.m, self.mtime = {}, None
+            return
+        if mt == self.mtime:
+            return
+        d = doc_json(FILE_VIET_HOA, {})
+        m = {}
+        if isinstance(d, dict):
+            for en, vi in d.items():
+                k = chuan_hoa_vh(en)
+                if len(k) >= 4 and isinstance(vi, str):
+                    vi = re.sub(r"<br\s*/?>", "\n", vi)
+                    vi = re.sub(r"<[^<>]*>|\{[^{}]*\}|\[EMPTY\]", "", vi)
+                    m[k] = "\n".join(" ".join(x.split()) for x in vi.split("\n")).strip()
+        self.m, self.mtime = m, mt
+
+    def tim(self, van_ban):
+        self._nap()
+        if not self.m:
+            return None
+        k = chuan_hoa_vh(van_ban)
+        kq = self.m.get(k)
+        if kq is None and "\n" in van_ban:
+            # nhieu dong OCR: thu tung dong
+            ds = [self.m.get(chuan_hoa_vh(x)) for x in van_ban.split("\n") if x.strip()]
+            if ds and all(ds):
+                kq = "\n".join(ds)
+        return kq
+
+
 class BoDich:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -900,6 +955,7 @@ class BoDich:
         self.khoa_hong = False
         self.khoa = threading.Lock()
         self.co_moi = False
+        self.viet_hoa = BoNhoVietHoa()
 
     def _doc_khoa(self):
         try:
@@ -953,6 +1009,13 @@ class BoDich:
         return None
 
     def tim(self, van_ban):
+        if self.cfg.get("dung_viet_hoa", True):
+            try:
+                kq = self.viet_hoa.tim(van_ban)   # ban Viet hoa game: giong het chu trong game
+            except Exception:
+                kq = None
+            if kq:
+                return self._sua(kq)
         kq = self._tim("claude", van_ban)  # ban Claude da luu: mien phi, luon dung
         if kq is None and not self.dung_claude():
             kq = self._tim("google", van_ban)
@@ -2000,6 +2063,7 @@ class App:
         self.nut_tu_dong.pack(fill="x", pady=2)
         self.nut_claude = self._nut(t, "", "bat_tat_claude")
         self.nut_claude.pack(fill="x", pady=2)
+        self._nut(t, "Việt hóa game (dịch thẳng chữ trong game)…", "viet_hoa").pack(fill="x", pady=2)
         h = self._hang(t)
         self._nut(h, f"Dịch ngay ({p['dich_ngay'].upper()})", "dich_ngay").pack(side="left", expand=True,
                                                                                 fill="x", padx=(0, 4))
@@ -2494,6 +2558,28 @@ class App:
         threading.Thread(target=chay, daemon=True).start()
 
     # ------------------------------------------------------------ lenh
+    def mo_viet_hoa(self):
+        """Mo cua so Viet hoa game (launcher da gop vao app)."""
+        cs = getattr(self, "cua_so_vh", None)
+        if cs is not None:
+            try:
+                cs.root.deiconify()
+                cs.root.lift()
+                return
+            except Exception:
+                self.cua_so_vh = None
+        try:
+            import viet_hoa
+            self.cua_so_vh = viet_hoa.App(self.root, khi_dong=lambda: setattr(self, "cua_so_vh", None))
+            try:
+                self.cua_so_vh.root.attributes("-topmost", True)
+                self.cua_so_vh.root.after(800, lambda: self.cua_so_vh and self.cua_so_vh.root.attributes(
+                    "-topmost", False))
+            except Exception:
+                pass
+        except Exception as e:
+            self._bao(f"Không mở được Việt hóa game: {e}", "loi")
+
     def lenh(self, ten):
         c = self.cfg
         if ten == "chon_hoi_thoai" or ten == "chon_nhiem_vu":
@@ -2579,6 +2665,9 @@ class App:
                 for m, lbl in self.lbl_xem.items():
                     lbl.config(image="", text="(tắt)", width=48, height=2)
                 self.anh_xem.clear()
+        elif ten == "viet_hoa":
+            self.mo_viet_hoa()
+            return
         elif ten in ("bat_tat_claude", "bo_dich_claude", "bo_dich_google"):
             c["claude_bat"] = (not c.get("claude_bat", True)) if ten == "bat_tat_claude" else ten.endswith("claude")
             if not c["claude_bat"]:
@@ -3003,7 +3092,16 @@ class App:
         Che do offline_claude: Claude dich ngam de luu, lan sau gap lai cau do hien ban Claude ngay."""
         ma = v["id"]
         vi, nguon = None, ""
-        if che_do == "offline_claude":
+        if self.cfg.get("dung_viet_hoa", True):
+            try:
+                vi = self.bo_dich.viet_hoa.tim(chu)
+            except Exception:
+                vi = None
+            if vi:
+                vi, nguon = self.bo_dich._sua(vi), "bản Việt hóa game"
+            else:
+                vi = None
+        if vi is None and che_do == "offline_claude":
             vi = self.bo_dich.tim(chu)
             if vi is not None:
                 nguon = "bản Claude đã lưu"

@@ -1,0 +1,16 @@
+{
+  "phien_ban_danh_muc": 1,
+  "_huong_dan": "Moi goi: id, ten, phien_ban, nhan_dien {steam:[appid], epic:[AppName], gog:[id], file:[duong dan tuong doi]}, phien_ban_game (buildid Steam, bo trong = moi ban), url, sha256, kich_thuoc. Tao goi bang cong_cu/tao_goi.py",
+  "goi": [
+    {
+      "id": "thu_nghiem",
+      "ten": "Gói thử (kiểm tra launcher)",
+      "thu_nghiem": true,
+      "phien_ban": "1.0",
+      "tep_mau": ["VIET_HOA_THU.txt"],
+      "url": "https://raw.githubusercontent.com/Zinit-mid/VietHoaGame/main/goi/thu_nghiem.zip",
+      "sha256": "98164cd007e450a95fe9a3ae5093f271a9ffd6b7f65b9f86e5f8dabe660d76d3",
+      "kich_thuoc": 281
+    }
+  ]
+}

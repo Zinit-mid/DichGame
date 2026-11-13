@@ -1,11 +1,11 @@
-## Dịch Game v6.2.3
+## Dịch Game v6.3.0 – gộp Việt hóa game vào một app
 
-**Chế độ tiết kiệm: tắt Claude**
-- Nút "Claude: BẬT / TẮT" ở thẻ Điều khiển, thanh thu gọn và thẻ "Dịch bằng AI" – hoặc phím **Ctrl+Shift+C**
-- Khi TẮT: không gọi Claude nữa (không tốn tiền), dịch bằng offline (CPU) hoặc Google; câu nào Claude đã dịch trước đây vẫn hiện bản Claude (miễn phí)
-- F12, vùng cố định (Item, Tài liệu) và hội thoại đều ngừng dùng Claude khi tắt
+**Việt hóa game nằm ngay trong app Dịch Game**
+- Nút **"Việt hóa game (dịch thẳng chữ trong game)…"** ở thẻ Điều khiển → mở cửa sổ Việt hóa (tìm game Steam/Epic/GOG, Việt hóa Crimson Desert 3 đợt, xuất gói DMM)
+- Không cần mở VietHoaGame.exe riêng nữa; tiến độ dịch cũ vẫn giữ nguyên
 
-**Giới hạn tiền mỗi ngày**
-- Cài đặt → Dịch bằng AI → "Giới hạn mỗi ngày": Không / $0.05 / $0.10 / $0.20
-- Tới mức đã chọn thì Claude tự tắt tới ngày mai, app vẫn dịch offline / Google
-- Hiện số tiền đã dùng hôm nay và tổng cộng
+**Dịch màn hình dùng bản Việt hóa**
+- Câu nào đã có trong bản Việt hóa game thì hiện ngay bản đó: miễn phí, giống hệt chữ trong game, không gọi Claude
+
+**Ước tính chi phí Claude sát thực tế hơn**
+- Tự đo số tiền thực tế mỗi lần dịch để ước tính cho lần sau
