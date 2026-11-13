@@ -463,6 +463,30 @@ class QuanLyCai:
                           "tep": ds_moi}
         self.luu()
 
+    def cai_thu_muc(self, g, ten_goi, nguon, bao):
+        """Chep moi file trong thu muc nguon vao thu muc game (giu duong dan), sao luu file goc truoc."""
+        tep = []
+        for goc, _, ts in os.walk(nguon):
+            for t in ts:
+                tep.append(os.path.relpath(os.path.join(goc, t), nguon).replace(os.sep, "/"))
+        if not tep:
+            raise LoiCai("bản dịch không có file nào")
+        os.makedirs(DU_LIEU, exist_ok=True)
+        tam = os.path.join(DU_LIEU, "goi_tam.zip")
+        with zipfile.ZipFile(tam, "w", zipfile.ZIP_STORED) as z:
+            for t in tep:
+                z.write(os.path.join(nguon, t), "tep/" + t)
+        try:
+            self.cai(g, {"id": "tu_file", "ten": ten_goi, "phien_ban": ""}, tam, bao)
+        finally:
+            try:
+                os.remove(tam)
+            except OSError:
+                pass
+        self.da_cai[khoa_game(g)]["ten_goi"] = ten_goi
+        self.luu()
+        return len(tep)
+
     def _tra_mot(self, g, sl, t):
         dich = _duong_dan_an_toan(g["thu_muc"], t["duong_dan"])
         ban_sao = _duong_dan_an_toan(sl, t["duong_dan"])
@@ -494,6 +518,102 @@ class QuanLyCai:
         del self.da_cai[k]
         self.luu()
         shutil.rmtree(sl, ignore_errors=True)
+
+
+# ================================================================ Giai nen .zip / .rar / .7z
+
+DUOI_NEN = (".zip", ".rar", ".7z")
+
+
+def _tim_7zip():
+    for p in (os.path.join(os.environ.get("ProgramFiles") or r"C:\Program Files", "7-Zip", "7z.exe"),
+              os.path.join(os.environ.get("ProgramFiles(x86)") or r"C:\Program Files (x86)", "7-Zip", "7z.exe"),
+              os.path.join(DU_LIEU, "cong_cu", "7zip", "7z.exe")):
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _tai_7zip(bao):
+    """Tai 7-Zip ban chinh thuc (github.com/ip7z/7zip): 7zr.exe + bo cai x64, lay ra 7z.exe + 7z.dll."""
+    thu = os.path.join(DU_LIEU, "cong_cu", "7zip")
+    os.makedirs(thu, exist_ok=True)
+    bao("Đang tải công cụ giải nén 7-Zip (~2 MB, chỉ tải 1 lần)...")
+    tt = _tai_json("https://api.github.com/repos/ip7z/7zip/releases/latest")
+    ts = {a["name"].lower(): a["browser_download_url"] for a in tt.get("assets", [])}
+    cai = next((u for n, u in ts.items() if re.fullmatch(r"7z\d+-x64\.exe", n)), None)
+    if "7zr.exe" not in ts or not cai:
+        raise LoiCai("không tìm thấy bản 7-Zip để tải")
+    zr = os.path.join(thu, "7zr.exe")
+    tai_tep(ts["7zr.exe"], zr)
+    bo_cai = os.path.join(thu, "cai_7zip.exe")
+    tai_tep(cai, bo_cai)
+    an = 0x08000000 if os.name == "nt" else 0
+    subprocess.run([zr, "x", "-y", f"-o{thu}", bo_cai, "7z.exe", "7z.dll"], stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, creationflags=an, timeout=300)
+    try:
+        os.remove(bo_cai)
+    except OSError:
+        pass
+    p = os.path.join(thu, "7z.exe")
+    if not os.path.isfile(p):
+        raise LoiCai("tải 7-Zip xong nhưng không lấy được 7z.exe")
+    return p
+
+
+def giai_nen(tep, ra, bao=lambda s: None):
+    """Giai nen .zip/.rar/.7z vao thu muc ra. .zip dung san; .rar/.7z dung 7-Zip (co san, hoac tu tai),
+    neu khong duoc thi thu tar.exe cua Windows 11."""
+    os.makedirs(ra, exist_ok=True)
+    duoi = os.path.splitext(tep)[1].lower()
+    if duoi == ".zip":
+        with zipfile.ZipFile(tep) as z:
+            for n in z.namelist():
+                if n.endswith("/"):
+                    continue
+                dich = _duong_dan_an_toan(ra, n)
+                os.makedirs(os.path.dirname(dich), exist_ok=True)
+                with z.open(n) as a, open(dich, "wb") as b:
+                    shutil.copyfileobj(a, b)
+        return
+    an = 0x08000000 if os.name == "nt" else 0
+    bay = _tim_7zip()
+    if not bay:
+        try:
+            bay = _tai_7zip(bao)
+        except Exception:
+            bay = None
+    if bay:
+        bao("Đang giải nén bằng 7-Zip...")
+        r = subprocess.run([bay, "x", "-y", f"-o{ra}", tep], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           creationflags=an, timeout=3600)
+        if r.returncode == 0:
+            return
+        loi = r.stdout.decode("utf-8", "replace")[-300:]
+    else:
+        loi = "không có 7-Zip"
+    tar = os.path.join(os.environ.get("SystemRoot") or r"C:\Windows", "System32", "tar.exe")
+    if os.path.isfile(tar):
+        bao("Đang giải nén bằng công cụ của Windows...")
+        r = subprocess.run([tar, "-xf", tep, "-C", ra], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           creationflags=an, timeout=3600)
+        if r.returncode == 0:
+            return
+        loi = r.stdout.decode("utf-8", "replace")[-300:]
+    raise LoiCai(f"không giải nén được {os.path.basename(tep)} ({loi.strip()[:200]})")
+
+
+def goc_ban_dich(thu, thu_muc_game):
+    """Thu muc goc trong file nen tuong ung voi thu muc game: 'tep/' (goi chuan), hoac bo 1 lop thu muc bao ngoai."""
+    if os.path.isdir(os.path.join(thu, "tep")):
+        return os.path.join(thu, "tep")
+    while True:
+        con = [x for x in os.listdir(thu) if not x.startswith("__MACOSX")]
+        if len(con) == 1 and os.path.isdir(os.path.join(thu, con[0])) and \
+                not os.path.exists(os.path.join(thu_muc_game, con[0])):
+            thu = os.path.join(thu, con[0])
+            continue
+        return thu
 
 
 # ================================================================ Tu cap nhat
@@ -1317,6 +1437,354 @@ class App:
 
     def chay(self):
         self.root.mainloop()
+
+
+
+# ================================================================ Thu vien game (nam trong cua so chinh Dich Game)
+
+MAU_O_GAME = ["#8a2b24", "#2c4a7a", "#4a3a6e", "#2f5f55", "#7a5a1f", "#5a2f62", "#24606e", "#6e3b2a"]
+
+
+def chu_tat(ten):
+    t = [x for x in re.split(r"[\s:_\-]+", ten) if x]
+    if not t:
+        return "?"
+    return (t[0][0] + (t[1][0] if len(t) > 1 else (t[0][1] if len(t[0]) > 1 else ""))).upper()
+
+
+class ThuVien(App):
+    """Cot trai: danh sach game; cot giua: chi tiet game dang chon + nut 1 cham.
+    Dung chung moi chuc nang cua App (quet, cai, khoi phuc, Viet hoa Crimson Desert)."""
+
+    def __init__(self, root, khung_trai, khung_giua, tao_cuon, f=None, p=None):
+        import tkinter as tk
+        from tkinter import filedialog, messagebox
+        self.nhung = True
+        self.khi_dong = None
+        self.tk, self.filedialog, self.messagebox = tk, filedialog, messagebox
+        os.makedirs(DU_LIEU, exist_ok=True)
+        self.cfg = doc_json(FILE_CAU_HINH, {})
+        self.cfg.setdefault("game_tay", [])
+        self.ql = QuanLyCai()
+        self.danh_muc, self.danh_muc_moi = {"goi": []}, False
+        self.games, self.trang = [], {}
+        self.q = queue.Queue()
+        self.dang_ban = False
+        self.ban_moi = None
+        self.root = root
+        self.f = f or (lambda co, kieu="": ("Segoe UI", co, kieu) if kieu else ("Segoe UI", co))
+        self.p = p or (lambda n: n)
+        self.tao_cuon = tao_cuon
+        self.trai, self.giua = khung_trai, khung_giua
+        self.chon = self.cfg.get("game_dang_chon")
+        self.tim = ""
+        self._giao_dien()
+        self.root.after(100, self._xu_ly_hang_doi)
+        self.root.after(300, self.quet)
+
+    # ---------- phan tu
+    def _nut(self, cha, chu, cmd, chinh=False, nho=False, lon=False, phu=""):
+        tk = self.tk
+        nen, hover = (UI_DO, UI_DO_HOVER) if chinh else (UI_O, UI_O_HOVER)
+        if lon:
+            b = tk.Frame(cha, bg=nen, cursor="hand2", padx=self.p(10), pady=self.p(10))
+            l1 = tk.Label(b, text=chu, bg=nen, fg="#ffffff" if chinh else UI_CHU, font=self.f(11, "bold"))
+            l1.pack()
+            l2 = tk.Label(b, text=phu, bg=nen, fg="#ffe1de" if chinh else UI_PHU, font=self.f(8))
+            l2.pack()
+            ds = (b, l1, l2)
+        else:
+            b = tk.Label(cha, text=chu, bg=nen, fg="#ffffff" if chinh else UI_CHU, cursor="hand2",
+                         font=self.f(9 if nho else 10, "bold" if chinh else ""),
+                         padx=self.p(10 if nho else 14), pady=self.p(4 if nho else 7))
+            ds = (b,)
+        for w in ds:
+            w.bind("<Button-1>", lambda e: cmd())
+            w.bind("<Enter>", lambda e: [x.config(bg=hover) for x in ds])
+            w.bind("<Leave>", lambda e: [x.config(bg=nen) for x in ds])
+        return b
+
+    def _o_tat(self, cha, ten, co):
+        tk = self.tk
+        mau = MAU_O_GAME[int(hashlib.md5(ten.encode("utf-8")).hexdigest(), 16) % len(MAU_O_GAME)]
+        return tk.Label(cha, text=chu_tat(ten), bg=mau, fg="#ffffff", font=self.f(co, "bold"),
+                        width=3, height=1, padx=self.p(6), pady=self.p(8))
+
+    def _giao_dien(self):
+        tk = self.tk
+        t = self.trai
+        dau = tk.Frame(t, bg=t["bg"], padx=self.p(14), pady=self.p(12))
+        dau.pack(fill="x")
+        h = tk.Frame(dau, bg=t["bg"])
+        h.pack(fill="x")
+        tk.Label(h, text="THƯ VIỆN GAME", bg=t["bg"], fg=UI_CHU, font=self.f(11, "bold")).pack(side="left")
+        self.lbl_so = tk.Label(h, text="", bg=t["bg"], fg=UI_PHU, font=self.f(9))
+        self.lbl_so.pack(side="right")
+        h = tk.Frame(dau, bg=t["bg"])
+        h.pack(fill="x", pady=(self.p(8), 0))
+        self._nut(h, "↻ Quét game", self.quet, nho=True).pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._nut(h, "+ Thêm game", self.them_tay, nho=True).pack(side="left", fill="x", expand=True)
+        self.bien_tim = tk.StringVar()
+        o = tk.Entry(dau, textvariable=self.bien_tim, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU, relief="flat",
+                     font=self.f(10))
+        o.pack(fill="x", pady=(self.p(8), 0), ipady=self.p(4))
+        self.bien_tim.trace_add("write", lambda *a: self._ve_danh_sach())
+        self.bien_loc = tk.BooleanVar(value=bool(self.cfg.get("chi_co_viet_hoa", False)))
+        tk.Checkbutton(dau, text="Chỉ game có Việt hóa", variable=self.bien_loc, command=self._doi_loc,
+                       bg=t["bg"], fg=UI_PHU, selectcolor=UI_O, activebackground=t["bg"],
+                       activeforeground=UI_CHU, font=self.f(9), bd=0, highlightthickness=0).pack(anchor="w",
+                                                                                                pady=(4, 0))
+        ngoai, self.ds = self.tao_cuon(t)
+        ngoai.pack(fill="both", expand=True)
+        ngoai_g, self.chi_tiet = self.tao_cuon(self.giua)
+        ngoai_g.pack(fill="both", expand=True)
+        self.lbl_tt = tk.Label(self.giua, text="", bg=UI_THE, fg=UI_PHU, font=self.f(9), anchor="w",
+                               justify="left", padx=self.p(14), pady=self.p(6))
+        self.lbl_tt.pack(fill="x", side="bottom")
+        self.lbl_tt.bind("<Configure>", lambda e: self.lbl_tt.config(wraplength=max(200, e.width - 30)))
+
+    def _bao(self, chu, mau=UI_PHU):
+        try:
+            self.lbl_tt.config(text=chu, fg=mau)
+        except Exception:
+            pass
+
+    def _game_chon(self):
+        for g in self.games:
+            if khoa_game(g) == self.chon:
+                return g
+        return None
+
+    def _chon(self, g):
+        self.chon = khoa_game(g)
+        self.cfg["game_dang_chon"] = self.chon
+        ghi_json(FILE_CAU_HINH, self.cfg)
+        self._ve_danh_sach()
+
+    def _ve_danh_sach(self):
+        tk = self.tk
+        try:
+            for w in self.ds.winfo_children():
+                w.destroy()
+        except Exception:
+            return
+        thu_tu = {"can_cai_lai": 0, "co_ban_moi": 1, "da_cai": 2, "co_viet_hoa": 3, "khac_phien_ban": 4,
+                  "dang_kiem_tra": 5, "chua_ho_tro": 6}
+        tim = self.bien_tim.get().strip().lower()
+        ds = sorted(self.games, key=lambda g: (0 if la_crimson(g) else 1,
+                                               thu_tu.get(self.trang.get(khoa_game(g), "dang_kiem_tra"), 9),
+                                               g["ten"].lower()))
+        if self.chon is None or not self._game_chon():
+            if ds:
+                self.chon = khoa_game(ds[0])
+        hien = 0
+        for g in ds:
+            k = khoa_game(g)
+            tt = self.trang.get(k, "dang_kiem_tra")
+            if self.bien_loc.get() and tt in ("chua_ho_tro", "dang_kiem_tra") and not la_crimson(g):
+                continue
+            if tim and tim not in g["ten"].lower():
+                continue
+            hien += 1
+            chon = k == self.chon
+            nen = "#2a1d1f" if chon else self.ds["bg"]
+            hang = tk.Frame(self.ds, bg=nen, cursor="hand2", padx=self.p(8), pady=self.p(6),
+                            highlightthickness=1, highlightbackground=UI_DO if chon else nen)
+            hang.pack(fill="x", padx=self.p(8), pady=(0, 2))
+            o = self._o_tat(hang, g["ten"], 10)
+            o.pack(side="left")
+            ben = tk.Frame(hang, bg=nen)
+            ben.pack(side="left", fill="x", expand=True, padx=(self.p(10), 0))
+            tk.Label(ben, text=g["ten"], bg=nen, fg=UI_CHU, font=self.f(10, "bold"), anchor="w").pack(fill="x")
+            chu_tt, mau = self._chu_trang_thai(g, tt)
+            tk.Label(ben, text="● " + chu_tt, bg=nen, fg=mau, font=self.f(8), anchor="w").pack(fill="x")
+            for w in (hang, o, ben) + tuple(ben.winfo_children()):
+                w.bind("<Button-1>", lambda e, g=g: self._chon(g))
+        if not hien:
+            tk.Label(self.ds, text="Chưa thấy game nào.\nBấm \"+ Thêm game\" để chọn thư mục game.",
+                     bg=self.ds["bg"], fg=UI_PHU, font=self.f(9), justify="center").pack(pady=30)
+        self.lbl_so.config(text=f"{len(self.games)} game")
+        self._ve_chi_tiet()
+
+    def _chu_trang_thai(self, g, tt):
+        bg = self.ql.ban_ghi(g)
+        if la_crimson(g) and tt in ("chua_ho_tro", "dang_kiem_tra"):
+            co = self._goi_cd()
+            if co:
+                return "Có bản Việt hóa (dùng qua DMM)", UI_XANH
+            return "Việt hóa bằng công cụ riêng", UI_VANG
+        chu, mau = TRANG_THAI.get(tt, ("?", UI_PHU))
+        if bg and tt == "da_cai":
+            chu = "Đang dùng: " + (bg.get("ten_goi") or ("gói thử" if bg.get("thu_nghiem") else
+                                                         f"bản v{bg.get('phien_ban_goi') or '?'}"))
+        return chu, mau
+
+    def _goi_cd(self):
+        """Cac goi DMM cua Crimson Desert da tao tren Desktop."""
+        d = thu_muc_desktop()
+        kq = []
+        for ten, mo_ta in (("VietHoa_CrimsonDesert.zip", "Chữ Việt hóa"), ("LongTieng_A_NhanVat.zip", "Lồng tiếng A"),
+                           ("LongTieng_B_DanThuong.zip", "Lồng tiếng B"), ("LongTieng_Kliff_DMM.zip", "Lồng tiếng Kliff")):
+            p = os.path.join(d, ten)
+            if os.path.isfile(p):
+                kq.append((mo_ta, ten, time.strftime("%d/%m %H:%M", time.localtime(os.path.getmtime(p)))))
+        return kq
+
+    def _ve_chi_tiet(self):
+        tk = self.tk
+        c = self.chi_tiet
+        for w in c.winfo_children():
+            w.destroy()
+        g = self._game_chon()
+        if not g:
+            tk.Label(c, text="Chọn một game ở cột bên trái.", bg=c["bg"], fg=UI_PHU, font=self.f(11)).pack(pady=40)
+            return
+        k = khoa_game(g)
+        tt = self.trang.get(k, "dang_kiem_tra")
+        bg = self.ql.ban_ghi(g)
+        goi = tim_goi(self.danh_muc, g)
+        cd = la_crimson(g)
+        P = self.p
+        dau = tk.Frame(c, bg=c["bg"], padx=P(22), pady=P(18))
+        dau.pack(fill="x")
+        self._o_tat(dau, g["ten"], 18).pack(side="left", anchor="n")
+        ben = tk.Frame(dau, bg=c["bg"])
+        ben.pack(side="left", fill="x", expand=True, padx=(P(16), 0))
+        tk.Label(ben, text=g["ten"], bg=c["bg"], fg=UI_CHU, font=self.f(17, "bold"), anchor="w").pack(fill="x")
+        tk.Label(ben, text=g["thu_muc"], bg=c["bg"], fg=UI_PHU, font=self.f(8), anchor="w").pack(fill="x")
+        chip = tk.Frame(ben, bg=c["bg"])
+        chip.pack(fill="x", pady=(P(6), 0))
+
+        def nhan_chip(chu, mau=UI_CHU):
+            tk.Label(chip, text=chu, bg=UI_O, fg=mau, font=self.f(8, "bold"), padx=P(8), pady=P(3)).pack(
+                side="left", padx=(0, P(6)))
+        nhan_chip(TEN_NGUON.get(g["nguon"], g["nguon"]))
+        if g.get("phien_ban"):
+            nhan_chip(f"Bản game: {g['phien_ban']}")
+        chu_tt, mau = self._chu_trang_thai(g, tt)
+        nhan_chip(chu_tt, mau)
+        if bg:
+            tk.Label(ben, text=f"Cài lúc {bg.get('luc', '?')} • {len(bg.get('tep', []))} file • bản gốc đã sao lưu",
+                     bg=c["bg"], fg=UI_PHU, font=self.f(8), anchor="w").pack(fill="x", pady=(P(4), 0))
+
+        # --- nut 1 cham
+        hang = tk.Frame(c, bg=c["bg"], padx=P(22))
+        hang.pack(fill="x", pady=(0, P(14)))
+        for i in range(3):
+            hang.grid_columnconfigure(i, weight=1, uniform="nut")
+        if goi and tt in ("co_viet_hoa", "can_cai_lai", "co_ban_moi", "khac_phien_ban"):
+            chu = {"co_viet_hoa": "Cài Việt hóa", "can_cai_lai": "Cài lại Việt hóa", "co_ban_moi": "Cập nhật Việt hóa",
+                   "khac_phien_ban": "Vẫn cài Việt hóa"}[tt]
+            b1 = self._nut(hang, chu, lambda: self.cai(g, goi), chinh=True, lon=True,
+                           phu=f"gói v{goi.get('phien_ban', '?')} từ danh mục")
+        elif cd:
+            b1 = self._nut(hang, "Việt hóa Crimson Desert", lambda: self.mo_cd(g), chinh=True, lon=True,
+                           phu="dịch chữ • lồng tiếng • gói DMM")
+        else:
+            b1 = self._nut(hang, "Cài / nạp bản dịch", lambda: self.nap_tu_file(g), chinh=True, lon=True,
+                           phu=".zip • .rar • .7z • file text")
+        b1.grid(row=0, column=0, sticky="nsew", padx=(0, P(8)))
+        if cd or (goi and tt in ("co_viet_hoa", "can_cai_lai", "co_ban_moi", "khac_phien_ban")):
+            b2 = self._nut(hang, "Cài / nạp bản dịch", lambda: self.nap_tu_file(g), lon=True,
+                           phu=".zip • .rar • .7z • file text")
+        else:
+            b2 = self._nut(hang, "Mở thư mục game", lambda: self._mo(g["thu_muc"]), lon=True, phu="xem file game")
+        b2.grid(row=0, column=1, sticky="nsew", padx=(0, P(8)))
+        if bg:
+            b3 = self._nut(hang, "Gỡ bản dịch", lambda: self.khoi_phuc(g), lon=True, phu="trả game về file gốc")
+        else:
+            b3 = self._nut(hang, "Gỡ bản dịch", lambda: self._bao("Game này chưa cài bản dịch nào bằng app.", UI_VANG),
+                           lon=True, phu="chưa cài gì")
+        b3.grid(row=0, column=2, sticky="nsew")
+
+        if cd:
+            the = tk.Frame(c, bg=UI_THE, padx=P(16), pady=P(12))
+            the.pack(fill="x", padx=P(22), pady=(0, P(12)))
+            tk.Label(the, text="CRIMSON DESERT – GÓI CHO DMM", bg=UI_THE, fg=UI_VANG, font=self.f(9, "bold"),
+                     anchor="w").pack(fill="x")
+            tk.Label(the, text="Game 2.04+ không cho sửa file trực tiếp: các gói dưới đây Import vào DMM "
+                               "(tắt game → Import → bật → Mount Mods).", bg=UI_THE, fg=UI_PHU, font=self.f(9),
+                     anchor="w", justify="left", wraplength=P(560)).pack(fill="x", pady=(P(4), P(6)))
+            goi_cd = self._goi_cd()
+            for mo_ta, ten, luc in goi_cd:
+                h = tk.Frame(the, bg=UI_THE)
+                h.pack(fill="x", pady=1)
+                tk.Label(h, text=f"✓ {mo_ta}", bg=UI_THE, fg=UI_XANH, font=self.f(10, "bold"), width=16,
+                         anchor="w").pack(side="left")
+                tk.Label(h, text=f"Desktop\\{ten} • {luc}", bg=UI_THE, fg=UI_PHU, font=self.f(9),
+                         anchor="w").pack(side="left")
+            if not goi_cd:
+                tk.Label(the, text="Chưa có gói nào – bấm \"Việt hóa Crimson Desert\".", bg=UI_THE, fg=UI_VANG,
+                         font=self.f(9), anchor="w").pack(fill="x")
+            h = tk.Frame(the, bg=UI_THE)
+            h.pack(fill="x", pady=(P(8), 0))
+            self._nut(h, "Mở công cụ Việt hóa & lồng tiếng", lambda: self.mo_cd(g), nho=True).pack(side="left")
+            self._nut(h, "Mở Desktop", lambda: self._mo(thu_muc_desktop()), nho=True).pack(side="left", padx=P(6))
+
+        duoi = tk.Frame(c, bg=c["bg"], padx=P(22))
+        duoi.pack(fill="x", pady=(0, P(12)))
+        self._nut(duoi, "Mở thư mục game", lambda: self._mo(g["thu_muc"]), nho=True).pack(side="left")
+        if g["nguon"] == "tay":
+            self._nut(duoi, "Bỏ khỏi danh sách", lambda: self.bo_tay(g), nho=True).pack(side="left", padx=P(6))
+        if not la_admin():
+            self._nut(duoi, "Chạy bằng quyền quản trị", self._quyen_quan_tri, nho=True).pack(side="right")
+
+    def _mo(self, p):
+        try:
+            os.startfile(p)
+        except Exception as e:
+            self._bao(f"Không mở được: {e}", UI_LOI)
+
+    def nap_tu_file(self, g):
+        p = self.filedialog.askopenfilename(
+            title=f"Chọn bản dịch cho {g['ten']}",
+            filetypes=[("Bản dịch (.zip .rar .7z, file text)", "*.zip *.rar *.7z *.txt *.json *.csv *.ini *.xml "
+                                                                "*.loc *.lang *.paloc *.pak *.dat"),
+                       ("Tất cả file", "*.*")])
+        if not p:
+            return
+        if la_crimson(g) and not self.messagebox.askyesno(
+                "Crimson Desert",
+                "Crimson Desert bản 2.04+ không cho sửa file trực tiếp (game sẽ không chạy).\n"
+                "Gói .zip cho Crimson Desert nên Import trong DMM.\n\nVẫn chép bản dịch này vào thư mục game?"):
+            return
+        nen = os.path.splitext(p)[1].lower() in DUOI_NEN
+        dich_con = ""
+        if not nen:
+            d = self.filedialog.askdirectory(title="Chọn thư mục TRONG GAME để chép file dịch vào",
+                                             initialdir=g["thu_muc"])
+            if not d:
+                return
+            goc = os.path.normcase(os.path.normpath(g["thu_muc"]))
+            if os.path.commonpath([os.path.normcase(os.path.normpath(d)), goc]) != goc:
+                self._bao("Thư mục phải nằm trong thư mục game.", UI_LOI)
+                return
+            dich_con = os.path.relpath(d, g["thu_muc"])
+        ten = os.path.basename(p)
+
+        def viec(bao):
+            tam = os.path.join(DU_LIEU, "giai_nen_tam")
+            shutil.rmtree(tam, ignore_errors=True)
+            os.makedirs(tam)
+            try:
+                if nen:
+                    bao(f"Đang giải nén {ten}...")
+                    giai_nen(p, tam, bao)
+                    nguon = goc_ban_dich(tam, g["thu_muc"])
+                else:
+                    dich = os.path.join(tam, dich_con, ten) if dich_con != "." else os.path.join(tam, ten)
+                    os.makedirs(os.path.dirname(dich), exist_ok=True)
+                    shutil.copy2(p, dich)
+                    nguon = tam
+                so = self.ql.cai_thu_muc(g, ten, nguon, bao)
+            finally:
+                shutil.rmtree(tam, ignore_errors=True)
+            self._cap_nhat_mot(g)
+            return so
+        self._nen(viec, lambda so: f"Đã cài bản dịch {ten} cho {g['ten']} ({so} file) ✓")
+
+    def tat(self):
+        self.dang_dong = True
 
 
 if __name__ == "__main__":

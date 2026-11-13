@@ -1,3 +1,16 @@
+## Dịch Game v6.6.0 – giao diện mới
+
+- Giao diện mới 3 cột, nền tối:
+  - Trái: THƯ VIỆN GAME (quét game Steam/Epic/GOG, thêm game, tìm game, trạng thái Việt hóa từng game)
+  - Giữa: game đang chọn – nút 1 chạm: Cài / nạp bản dịch, Việt hóa Crimson Desert, Gỡ bản dịch; xem gói DMM đã tạo
+  - Phải: DỊCH MÀN HÌNH – công tắc lớn Bật/Tắt (F8), chọn máy dịch, vùng quét chữ, khung chữ dịch
+- Đèn trạng thái trên cùng: xanh đang dịch • vàng đang kết nối • đỏ đã dừng
+- Mới: máy dịch DeepL (cần mã API, có gói miễn phí) – nhập mã ở Cài đặt
+- Mới: nạp bản dịch từ file .zip, .rar, .7z hoặc file text (tự sao lưu file gốc, gỡ được)
+- Mới: thanh trượt độ đậm và cỡ chữ, chọn màu chữ / màu nền khung dịch, xem trước ngay
+- Mới: nút "Cửa sổ game" đặt vùng quét = cả cửa sổ game; nút "Phím tắt" xem toàn bộ phím
+- Mã API, giới hạn tiền, giọng đọc, hệ thống chuyển vào nút "Cài đặt"
+
 ## Dịch Game v6.5.0
 
 - Mới: lồng tiếng Việt cho TẤT CẢ nhân vật Crimson Desert, chia 2 phần:
