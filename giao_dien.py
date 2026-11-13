@@ -12,17 +12,18 @@ TI_LE = 1.0                  # co chu chung (dat tu cau hinh)
 DA_NAP = False
 
 # mau
-NEN = "#15161b"
-SAU = "#0f1115"
-CANH = "#12151b"
-THE = "#1e2027"
-VIEN = "#2a2f3a"
-O = "#2a2d36"
-O_HOVER = "#363a46"
-CHU = "#eceef2"
-PHU = "#9aa1ad"
-DO = "#d4483e"
-DO_HOVER = "#e65b50"
+NEN = "#0b1220"
+SAU = "#070d19"
+CANH = "#0c1527"
+THE = "#111b30"
+VIEN = "#26324f"
+O = "#18233c"
+O_HOVER = "#233257"
+CHU = "#eef2f8"
+PHU = "#97a3b8"
+DO = "#2f7cf6"          # mau chinh (xanh duong kieu DMM)
+DO_HOVER = "#4b8ff8"
+DO_THAT = "#e5484d"
 XANH = "#3ecf8e"
 VANG = "#f0b54a"
 LOI = "#ff6b6b"
@@ -73,6 +74,9 @@ KIEU_NUT = {
     "chinh": (DO, "#ffffff", DO_HOVER, None),
     "bat": (DO, "#ffffff", DO_HOVER, None),
     "nguy_hiem": (None, "#ff8a80", "#3a1d1f", "#7a3330"),
+    "xanh_la": ("#16a34a", "#ffffff", "#22c55e", None),
+    "menu": (None, PHU, O, None),
+    "menu_chon": (DO, "#ffffff", DO_HOVER, None),
     "cam": (CAM, "#ffffff", CAM_HOVER, None),
     "vien": (None, CHU, O, VIEN),
     "trang": ("#ffffff", "#9a4a00", "#ffe8cc", None),
@@ -84,7 +88,7 @@ class NutTron(tk.Canvas):
     """Nut bo goc ve bang Canvas. Ho tro config(text=, bg=, fg=, state=) nhu nut thuong."""
 
     def __init__(self, cha, chu, lenh=None, kieu="thuong", nho=False, rong=None, phu="", co=None,
-                 bieu_tuong="", ti_le=None):
+                 bieu_tuong="", ti_le=None, trai=False):
         try:
             nen_cha = cha.cget("bg")
         except Exception:
@@ -98,6 +102,7 @@ class NutTron(tk.Canvas):
         self.lenh = lenh
         self.nho = nho
         self.rong_chu = rong
+        self.trai = trai
         self.trang_thai = "normal"
         self.dang_tren = False
         co = co or (10 if nho else 11)
@@ -219,6 +224,8 @@ class NutTron(tk.Canvas):
             self.create_text(w // 2, y0, text=nhan, font=self.font, fill=chu, anchor="n")
             self.create_text(w // 2, y0 + lh + self.p(2), text=self.phu, font=self.font_phu,
                              fill="#ffe1de" if self.kieu in ("chinh", "bat") else PHU, anchor="n")
+        elif self.trai:
+            self.create_text(self.p(16), h // 2, text=nhan, font=self.font, fill=chu, anchor="w")
         else:
             self.create_text(w // 2, h // 2, text=nhan, font=self.font, fill=chu)
 

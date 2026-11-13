@@ -1,3 +1,12 @@
+## Dịch Game v6.9.0 – giao diện kiểu DMM
+
+- Menu bên trái như DMM: Thư viện game, Dịch màn hình, Công cụ game (Crimson Desert, Rise of the Tomb Raider), Cài đặt
+- Thư viện game: mỗi game là một thẻ, nút Việt hóa / Nạp bản dịch / Gỡ / Thư mục nằm bên phải
+- Công cụ Việt hóa Crimson Desert và Rise of the Tomb Raider mở ngay trong cửa sổ chính, kéo xuống được, không bị che
+- Chữ tự xuống dòng theo cỡ cửa sổ – thu nhỏ không bị cắt chữ, phóng to chữ đều
+- Trang Dịch màn hình: 2 cột khi cửa sổ rộng, tự xếp 1 cột khi hẹp
+- Thanh trạng thái ở dưới cùng (đèn xanh / vàng / đỏ); màu xanh dương giống DMM
+
 ## Dịch Game v6.8.1
 
 - Mới: Crimson Desert → nút "Mod tăng ô chứa đồ 1440" – tự đọc bảng túi đồ của bản game đang cài và tạo gói DMM:
