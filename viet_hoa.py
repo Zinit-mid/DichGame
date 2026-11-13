@@ -946,6 +946,10 @@ class App:
                   nho=True).pack(side="left")
         self._nut(hang3, "Đóng gói giọng Việt cho DMM (thử)", lambda: self._cd_dong_giong(g),
                   nho=True).pack(side="left", padx=6)
+        hang4 = tk.Frame(w, bg=UI_NEN)
+        hang4.pack(fill="x", pady=(2, 6))
+        self._nut(hang4, "Lồng tiếng Kliff TỰ ĐỘNG – VieNeu nhái giọng, cả 2.111 câu (chạy qua đêm)",
+                  lambda: self._cd_long_tieng_tu_dong(g), chinh=True).pack(side="left")
         self.cd_tien_do = nhan("", UI_VANG, 10)
         self.cd_tien_do.pack(fill="x", pady=(6, 0))
         self.cd_viec = None
@@ -1144,6 +1148,63 @@ class App:
             except Exception as e:
                 bao(f"Lỗi đóng gói giọng: {e}")
             finally:
+                self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _cd_long_tieng_tu_dong(self, g):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        import viet_hoa_cd as vcd
+        if not vcd.ViecDich.tim_vieneu():
+            self.messagebox.showwarning("Chưa có VieNeu",
+                                        "Không thấy app VieNeu trên máy.\nMở VieNeu, cài bản tăng tốc GPU rồi thử lại.")
+            return
+        wwise = vcd.ViecDich.tim_wwise_console()
+        if not wwise:
+            p = self.filedialog.askopenfilename(title="Chọn WwiseConsole.exe (trong thư mục cài Wwise\\Authoring\\x64\\Release\\bin)",
+                                                filetypes=[("WwiseConsole.exe", "WwiseConsole.exe")])
+            if not p:
+                return
+            wwise = p
+        if not self.messagebox.askyesno(
+                "Lồng tiếng Kliff tự động",
+                "App sẽ:\n1. Lấy giọng gốc của Kliff làm mẫu\n2. Cho VieNeu đọc toàn bộ câu Kliff đã Việt hóa "
+                "bằng giọng nhái Kliff (câu dài thì đọc nhanh hơn)\n3. Đóng gói thành Desktop\\LongTieng_Kliff_DMM.zip\n\n"
+                "• Tắt game và ĐÓNG app VieNeu trước (để nhường card màn hình).\n"
+                "• Laptop thì cắm sạc. Máy sẽ được giữ thức tới khi xong, màn hình vẫn tắt được.\n"
+                "• Đang chạy mà tắt thì lần sau bấm lại sẽ làm tiếp, không làm lại từ đầu.\n\nBắt đầu?"):
+            return
+        thu = os.path.join(thu_muc_desktop(), "LongTieng_Kliff")
+        zip_ra = os.path.join(thu_muc_desktop(), "LongTieng_Kliff_DMM.zip")
+        viec = self.cd_viec
+        viec.dung.clear()
+        self.cd_dang_chay = True
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            giu = False
+            try:
+                if os.name == "nt":
+                    # ES_CONTINUOUS | ES_SYSTEM_REQUIRED: khong cho may ngu trong luc chay
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                dong = viec.long_tieng_tu_dong(thu, zip_ra, wwise, bao)
+                if dong is None:
+                    bao("Đã tạm dừng lồng tiếng – bấm lại để làm tiếp.")
+                    return
+                tot = sum(1 for d in dong if d.startswith("✓"))
+                chu = (f"Xong! Đã lồng tiếng {tot:,} câu Kliff → Desktop\\LongTieng_Kliff_DMM.zip\n".replace(",", ".")
+                       + "Tắt game → DMM: tắt gói ThuTatCa, Import gói này, bật, Mount Mods → vào game.")
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+            except Exception as e:
+                bao(f"Lỗi lồng tiếng: {e}")
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
                 self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
         threading.Thread(target=chay, daemon=True).start()
 

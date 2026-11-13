@@ -723,7 +723,9 @@ class ViecDich:
         bao_cao = []
         bo_qua = []
         for w in wavs:
-            ten = os.path.splitext(w)[0].strip()
+            ten = os.path.splitext(w)[0].strip().strip("\u200b\u200e\u200f\ufeff")
+            while ten.lower().endswith(".wav"):
+                ten = ten[:-4].strip()
             if do_dai and ten not in do_dai:
                 bo_qua.append(f"✗ {w}: tên file không khớp câu nào của Kliff – đổi tên giống file trong thư mục goc")
                 continue
@@ -756,7 +758,7 @@ class ViecDich:
                 shutil.rmtree(ra_wem, ignore_errors=True)
                 r = subprocess.run([wwise, "convert-external-source", du_an, "--platform", "Windows",
                                     "--source-file", os.path.join(tam, "ds.wsources"), "--output", ra_wem],
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=1800)
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=4 * 3600)
                 nhat_ky.write(f"\n===== {chuyen_doi} =====\n" + r.stdout.decode("utf-8", "replace"))
                 co = {}
                 for g, _, ts in os.walk(ra_wem):
@@ -784,6 +786,195 @@ class ViecDich:
         shutil.rmtree(tam, ignore_errors=True)
         return dong + bo_qua
 
+    # ---------------------------------------------------------- long tieng tu dong (VieNeu)
+    @staticmethod
+    def tim_vieneu():
+        """Python cua app VieNeu (ban GPU uu tien). -> (python.exe, HF_HOME, la_gpu) hoac None."""
+        goc = os.path.join(os.environ.get("LOCALAPPDATA") or "", "com.vieneu.app")
+        for loai, gpu in (("gpu", True), ("dubtools", False)):
+            py = os.path.join(goc, loai, "venv", "Scripts", "python.exe")
+            if os.path.isfile(py) and os.path.isdir(os.path.join(goc, loai, "venv", "Lib", "site-packages", "vieneu")):
+                return py, os.path.join(goc, loai, "hf"), gpu
+        return None
+
+    @staticmethod
+    def lay_vgmstream(bao=lambda s: None):
+        """vgmstream-cli.exe (giai ma .wem goc) – tai tu GitHub lan dau, luu trong %APPDATA%."""
+        import glob
+        import urllib.request
+        thu = os.path.join(DU_LIEU, "cong_cu", "vgmstream")
+
+        def tim():
+            for ten in ("vgmstream-cli.exe", "test.exe"):
+                ds = glob.glob(os.path.join(thu, "**", ten), recursive=True)
+                if ds:
+                    return ds[0]
+            return None
+        if tim():
+            return tim()
+        bao("Đang tải công cụ giải mã giọng gốc (vgmstream, ~5 MB)...")
+        hd = {"User-Agent": "DichGame", "Accept": "application/vnd.github+json"}
+        with urllib.request.urlopen(urllib.request.Request(
+                "https://api.github.com/repos/vgmstream/vgmstream/releases/latest", headers=hd), timeout=60) as r:
+            tt = json.loads(r.read().decode("utf-8"))
+        ts = [(a["name"].lower(), a["browser_download_url"]) for a in tt.get("assets", [])]
+        chon = ([u for n, u in ts if "win64" in n and n.endswith(".zip")]
+                or [u for n, u in ts if "win" in n and n.endswith(".zip") and "foo" not in n and "fb2k" not in n])
+        if not chon:
+            raise LoiDung("không tìm thấy bản vgmstream cho Windows trên GitHub")
+        os.makedirs(thu, exist_ok=True)
+        z = os.path.join(thu, "vgmstream.zip")
+        with urllib.request.urlopen(urllib.request.Request(chon[0], headers={"User-Agent": "DichGame"}),
+                                    timeout=300) as r, open(z, "wb") as f:
+            f.write(r.read())
+        with zipfile.ZipFile(z) as zz:
+            zz.extractall(thu)
+        os.remove(z)
+        if not tim():
+            raise LoiDung("tải vgmstream xong nhưng không thấy vgmstream-cli.exe")
+        return tim()
+
+    @staticmethod
+    def _doc_wav16(p):
+        import wave
+        import numpy as np
+        with wave.open(p, "rb") as w:
+            return np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+
+    def tao_mau_kliff(self, thu_muc, bao=lambda s: None):
+        """mau_kliff.wav ~12 giay: noi 2-3 cau Kliff goc dai 4-9 giay (giai ma bang vgmstream).
+        Neu ban da tu dat file mau_kliff.wav thi giu nguyen."""
+        import csv
+        import subprocess
+        import wave
+        import numpy as np
+        mau = os.path.join(thu_muc, "mau_kliff.wav")
+        if os.path.isfile(mau):
+            return mau
+        vgm = self.lay_vgmstream(bao)
+        with open(os.path.join(thu_muc, "danh_sach.csv"), encoding="utf-8-sig") as f:
+            ds = [d for d in csv.DictReader(f) if 4.0 <= float(d.get("giay") or 0) <= 9.0 and d.get("tieng_anh")]
+        ds.sort(key=lambda d: -float(d["giay"]))
+        tam = os.path.join(thu_muc, "mau_tam")
+        os.makedirs(tam, exist_ok=True)
+        an = 0x08000000 if os.name == "nt" else 0
+        phan, tong = [], 0.0
+        for d in ds[:12]:
+            wem = os.path.join(thu_muc, "goc", d["ten_file"] + ".wem")
+            ra = os.path.join(tam, d["ten_file"] + ".wav")
+            if not os.path.isfile(wem):
+                continue
+            subprocess.run([vgm, "-o", ra, wem], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           creationflags=an, timeout=120)
+            if not os.path.isfile(ra):
+                continue
+            chuan = ra + ".48k.wav"
+            self.chuan_wav(ra, chuan)
+            x = self._doc_wav16(chuan)
+            if len(x) < 48000 or float(np.sqrt(np.mean(x ** 2))) < 0.01:
+                continue
+            phan.append(x)
+            tong += len(x) / 48000
+            if tong >= 11:
+                break
+        if not phan:
+            raise LoiDung("không giải mã được câu Kliff gốc nào để làm giọng mẫu")
+        lang = np.zeros(int(0.3 * 48000), dtype=np.float32)
+        y = np.concatenate([np.concatenate([p, lang]) for p in phan])[: 15 * 48000]
+        with wave.open(mau, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(48000)
+            w.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
+        import shutil
+        shutil.rmtree(tam, ignore_errors=True)
+        return mau
+
+    @staticmethod
+    def lam_sach_loi(s):
+        s = re.sub(r"<[^>]*>|\{[^}]*\}|\[[^\]]*\]", " ", s or "")
+        s = s.replace("\\n", " ").replace("\n", " ").replace("*", "")
+        s = re.sub(r"\s+", " ", s).strip()
+        s = re.sub(r"[,;:]\s*([?!.])", r"\1", s)
+        return re.sub(r"\s+([,.?!;:…])", r"\1", s).strip(" ,;:")
+
+    def long_tieng_tu_dong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None):
+        """Ca quy trinh: trich cau Kliff -> giong mau -> VieNeu doc 2.111 cau (nhai giong Kliff,
+        cau dai doc nhanh cho vua thoi gian) -> Wwise -> zip DMM. Chay lai thi lam tiep cho do."""
+        import csv
+        import subprocess
+        bao("Bước 1/4: lấy danh sách câu thoại Kliff...")
+        self.trich_giong_kliff(thu_muc, bao)
+        with open(os.path.join(thu_muc, "danh_sach.csv"), encoding="utf-8-sig") as f:
+            ds = [[d["ten_file"], self.lam_sach_loi(d["tieng_viet"]), float(d.get("giay") or 0)]
+                  for d in csv.DictReader(f)]
+        ds = [d for d in ds if d[1]]
+        if not ds:
+            raise LoiDung("chưa có câu Kliff nào được Việt hóa – chạy Đợt 1 trước")
+        vn = self.tim_vieneu()
+        if not vn:
+            raise LoiDung("không tìm thấy app VieNeu (bản tăng tốc GPU) – mở VieNeu, cài 'GPU' rồi thử lại")
+        py, hf, gpu = vn
+        bao("Bước 2/4: tạo giọng mẫu của Kliff...")
+        mau = self.tao_mau_kliff(thu_muc, bao)
+        import numpy as np
+        x = self._doc_wav16(mau) if mau.lower().endswith(".wav") else None
+        rms = float(np.sqrt(np.mean(x ** 2))) if x is not None and len(x) else 0.08
+        ra = os.path.join(thu_muc, "wav_tieng_viet")
+        os.makedirs(ra, exist_ok=True)
+        # danh dau file do app tao; file khac (vd file thu cu) se duoc tao lai
+        nhat = os.path.join(ra, "_da_tao.txt")
+        da = set(open(nhat, encoding="utf-8").read().split()) if os.path.isfile(nhat) else set()
+        for t in os.listdir(ra):
+            ten = os.path.splitext(t)[0]
+            if t.lower().endswith(".wav") and ten not in da:
+                try:
+                    os.remove(os.path.join(ra, t))
+                except OSError:
+                    pass
+        tam = os.path.join(THU_MUC_CD, "vieneu_tam")
+        os.makedirs(tam, exist_ok=True)
+        viec_json = os.path.join(tam, "viec.json")
+        with open(viec_json, "w", encoding="utf-8") as f:
+            json.dump({"mau": mau, "ra": ra, "ds": ds, "rms": min(max(rms, 0.03), 0.2),
+                       "toi_da": 1.4, "nhat": nhat, "gpu": gpu}, f, ensure_ascii=False)
+        kb = os.path.join(tam, "tao_giong.py")
+        with open(kb, "w", encoding="utf-8") as f:
+            f.write(KICH_BAN_VIENEU)
+        env = dict(os.environ, HF_HOME=hf,
+                   PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+        env.pop("PYTHONPATH", None)
+        env.pop("PYTHONHOME", None)
+        an = 0x08000000 if os.name == "nt" else 0
+        bao(f"Bước 3/4: VieNeu đang nạp mô hình ({'card màn hình' if gpu else 'CPU – sẽ rất chậm'})...")
+        bat_dau = time.time()
+        loi_cuoi = []
+        with open(os.path.join(thu_muc, "vieneu_nhat_ky.txt"), "a", encoding="utf-8", errors="replace") as nk:
+            p = subprocess.Popen([py, "-I", kb, viec_json], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 env=env, cwd=tam, creationflags=an)
+            for dong in iter(p.stdout.readline, b""):
+                d = dong.decode("utf-8", "replace").rstrip()
+                nk.write(d + "\n")
+                nk.flush()
+                if self.dung.is_set():
+                    p.kill()
+                    break
+                if d.startswith("XONG "):
+                    a, b = (int(v) for v in d.split()[1:3])
+                    con = (time.time() - bat_dau) / max(a, 1) * (b - a)
+                    bao(f"Bước 3/4: VieNeu đã đọc {a:,}/{b:,} câu • còn khoảng {con / 60:.0f} phút".replace(",", "."))
+                elif d.startswith("TONG "):
+                    bat_dau = time.time()
+                elif d.strip():
+                    loi_cuoi = (loi_cuoi + [d])[-6:]
+            p.wait()
+        if self.dung.is_set():
+            return None
+        if p.returncode != 0:
+            raise LoiDung("VieNeu dừng giữa chừng – xem LongTieng_Kliff\\vieneu_nhat_ky.txt\n" + "\n".join(loi_cuoi[-3:]))
+        bao("Bước 4/4: Wwise đang mã hóa toàn bộ giọng (có thể mất 10-30 phút)...")
+        return self.dong_goi_giong(thu_muc, duong_dan_zip, wwise, bao)
+
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
         tam = os.path.join(THU_MUC_CD, "goi_tam")
@@ -809,3 +1000,65 @@ class ViecDich:
                     z.write(p, f"{ten_mod}/0020/" + os.path.relpath(p, tam).replace(os.sep, "/"))
         shutil.rmtree(tam, ignore_errors=True)
         return thong_ke
+
+
+# Chay bang Python cua app VieNeu (khong phai Python cua Dich Game).
+KICH_BAN_VIENEU = r"""
+import json, os, sys, time
+viec = json.load(open(sys.argv[1], encoding="utf-8"))
+import numpy as np
+import soundfile as sf
+try:
+    import librosa
+except Exception:
+    librosa = None
+from vieneu import Vieneu
+tts = Vieneu(mode="v3turbo", device="cuda" if viec.get("gpu") else "cpu")
+ra, mau, SR = viec["ra"], viec["mau"], 48000
+can = [d for d in viec["ds"] if not os.path.isfile(os.path.join(ra, d[0] + ".wav"))]
+can.sort(key=lambda d: len(d[1]))
+print("TONG", len(viec["ds"]), len(can), flush=True)
+nk = open(viec["nhat"], "a", encoding="utf-8")
+
+def xu_ly(w, goc):
+    w = np.asarray(w, dtype=np.float32).reshape(-1)
+    if librosa is not None and len(w) > SR // 10:
+        w, _ = librosa.effects.trim(w, top_db=38)
+    if goc > 0.3 and librosa is not None:
+        dai, muc = len(w) / SR, goc * 0.97
+        if dai > muc:
+            w = librosa.effects.time_stretch(w, rate=min(dai / muc, viec.get("toi_da", 1.4)))
+    r = float(np.sqrt(np.mean(w ** 2))) if len(w) else 0
+    if r > 1e-4:
+        w = w * (viec["rms"] / r)
+    dinh = float(np.max(np.abs(w))) if len(w) else 0
+    if dinh > 0.97:
+        w = w * (0.97 / dinh)
+    return np.concatenate([np.zeros(int(0.05 * SR), np.float32), w, np.zeros(int(0.1 * SR), np.float32)])
+
+LO, xong = 16, 0
+for i in range(0, len(can), LO):
+    nhom = can[i:i + LO]
+    try:
+        wavs = tts.infer_batch([d[1] for d in nhom], ref_audio=mau)
+    except Exception as e:
+        print("lo loi, doc tung cau:", e, flush=True)
+        wavs = []
+        for d in nhom:
+            try:
+                wavs.append(tts.infer(d[1], ref_audio=mau))
+            except Exception as e2:
+                print("LOI", d[0], e2, flush=True)
+                wavs.append(None)
+    for d, w in zip(nhom, wavs):
+        if w is None or len(w) == 0:
+            continue
+        p = os.path.join(ra, d[0] + ".wav")
+        sf.write(p + ".tam", xu_ly(w, float(d[2] or 0)), SR, subtype="PCM_16", format="WAV")
+        os.replace(p + ".tam", p)
+        nk.write(d[0] + "\n")
+        nk.flush()
+    xong = min(i + LO, len(can))
+    print("XONG", xong, len(can), flush=True)
+print("HET", flush=True)
+"""
