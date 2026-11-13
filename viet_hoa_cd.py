@@ -648,7 +648,7 @@ class ViecDich:
         return None
 
     @staticmethod
-    def chuan_wav(nguon, dich, tan_so=48000):
+    def chuan_wav(nguon, dich, tan_so=48000, tang_db=0.0):
         """WAV bat ky (PCM 16/24/32 bit, float, stereo) -> PCM 16 bit mono 48 kHz. -> so giay."""
         import wave
         import numpy as np
@@ -688,6 +688,12 @@ class ViecDich:
         if ts != tan_so and len(x):
             n = int(round(len(x) * tan_so / ts))
             x = np.interp(np.linspace(0, len(x) - 1, n), np.arange(len(x)), x)
+        if tang_db:
+            x = x * (10 ** (tang_db / 20.0))
+            # gioi han mem: tieng to len nhung khong bi re / meo
+            t = 0.85
+            a = np.abs(x)
+            x = np.where(a <= t, x, np.sign(x) * (t + (1 - t) * np.tanh((a - t) / (1 - t))))
         x = np.clip(x, -1, 1)
         with wave.open(dich, "wb") as w:
             w.setnchannels(1)
@@ -696,7 +702,7 @@ class ViecDich:
             w.writeframes((x * 32767).astype("<i2").tobytes())
         return len(x) / tan_so
 
-    def dong_goi_giong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None):
+    def dong_goi_giong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None, tang_db=0.0):
         """thu_muc/wav_tieng_viet/<ten>.wav -> WwiseConsole (Vorbis) -> .wem -> zip DMM."""
         import csv
         import shutil
@@ -729,7 +735,7 @@ class ViecDich:
             if do_dai and ten not in do_dai:
                 bo_qua.append(f"✗ {w}: tên file không khớp câu nào của Kliff – đổi tên giống file trong thư mục goc")
                 continue
-            giay = self.chuan_wav(os.path.join(thu_wav, w), os.path.join(nguon, ten + ".wav"))
+            giay = self.chuan_wav(os.path.join(thu_wav, w), os.path.join(nguon, ten + ".wav"), tang_db=tang_db)
             goc = do_dai.get(ten)
             bao_cao.append((ten, giay, goc))
         if not bao_cao:
@@ -898,7 +904,7 @@ class ViecDich:
         s = re.sub(r"[,;:]\s*([?!.])", r"\1", s)
         return re.sub(r"\s+([,.?!;:…])", r"\1", s).strip(" ,;:")
 
-    def long_tieng_tu_dong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None):
+    def long_tieng_tu_dong(self, thu_muc, duong_dan_zip, wwise=None, bao=lambda s: None, tang_db=0.0):
         """Ca quy trinh: trich cau Kliff -> giong mau -> VieNeu doc 2.111 cau (nhai giong Kliff,
         cau dai doc nhanh cho vua thoi gian) -> Wwise -> zip DMM. Chay lai thi lam tiep cho do."""
         import csv
@@ -936,8 +942,21 @@ class ViecDich:
         os.makedirs(tam, exist_ok=True)
         viec_json = os.path.join(tam, "viec.json")
         with open(viec_json, "w", encoding="utf-8") as f:
-            json.dump({"mau": mau, "ra": ra, "ds": ds, "rms": min(max(rms, 0.03), 0.2),
-                       "toi_da": 1.4, "nhat": nhat, "gpu": gpu}, f, ensure_ascii=False)
+            json.dump({"nhom": [{"ten": "unique_kliff", "mau": mau, "ra": ra, "ds": ds,
+                                 "rms": min(max(rms, 0.03), 0.2)}],
+                       "toi_da": 1.4, "gpu": gpu}, f, ensure_ascii=False)
+        if not self.chay_vieneu(viec_json, py, hf, gpu, os.path.join(thu_muc, "vieneu_nhat_ky.txt"),
+                                lambda a, b, nhom: bao(f"Bước 3/4: VieNeu đã đọc {a:,}/{b:,} câu".replace(",", ".") + nhom)):
+            return None
+        bao("Bước 4/4: Wwise đang mã hóa toàn bộ giọng (có thể mất 10-30 phút)...")
+        return self.dong_goi_giong(thu_muc, duong_dan_zip, wwise, bao, tang_db)
+
+    # ---------------------------------------------------------- long tieng tat ca nhan vat
+    def chay_vieneu(self, viec_json, py, hf, gpu, file_nhat_ky, tien_do):
+        """Chay KICH_BAN_VIENEU bang Python cua VieNeu. tien_do(xong, tong, ' • ten nhom ...').
+        -> True xong, False neu bi tam dung."""
+        import subprocess
+        tam = os.path.dirname(viec_json)
         kb = os.path.join(tam, "tao_giong.py")
         with open(kb, "w", encoding="utf-8") as f:
             f.write(KICH_BAN_VIENEU)
@@ -946,10 +965,10 @@ class ViecDich:
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
         an = 0x08000000 if os.name == "nt" else 0
-        bao(f"Bước 3/4: VieNeu đang nạp mô hình ({'card màn hình' if gpu else 'CPU – sẽ rất chậm'})...")
-        bat_dau = time.time()
+        tien_do(0, 0, f" • đang nạp mô hình ({'card màn hình' if gpu else 'CPU – sẽ rất chậm'})...")
+        bat_dau, goc_xong, nhom_hien = time.time(), 0, ""
         loi_cuoi = []
-        with open(os.path.join(thu_muc, "vieneu_nhat_ky.txt"), "a", encoding="utf-8", errors="replace") as nk:
+        with open(file_nhat_ky, "a", encoding="utf-8", errors="replace") as nk:
             p = subprocess.Popen([py, "-I", kb, viec_json], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  env=env, cwd=tam, creationflags=an)
             for dong in iter(p.stdout.readline, b""):
@@ -962,18 +981,275 @@ class ViecDich:
                 if d.startswith("XONG "):
                     a, b = (int(v) for v in d.split()[1:3])
                     con = (time.time() - bat_dau) / max(a, 1) * (b - a)
-                    bao(f"Bước 3/4: VieNeu đã đọc {a:,}/{b:,} câu • còn khoảng {con / 60:.0f} phút".replace(",", "."))
+                    tien_do(a, b, f"{nhom_hien} • còn khoảng {con / 60:.0f} phút")
+                elif d.startswith("NHOM "):
+                    t = d.split()
+                    nhom_hien = f" • giọng {t[1]}/{t[2]}: {t[3]}"
                 elif d.startswith("TONG "):
                     bat_dau = time.time()
-                elif d.strip():
+                elif d.strip() and not d.startswith("HET"):
                     loi_cuoi = (loi_cuoi + [d])[-6:]
             p.wait()
         if self.dung.is_set():
-            return None
+            return False
         if p.returncode != 0:
-            raise LoiDung("VieNeu dừng giữa chừng – xem LongTieng_Kliff\\vieneu_nhat_ky.txt\n" + "\n".join(loi_cuoi[-3:]))
-        bao("Bước 4/4: Wwise đang mã hóa toàn bộ giọng (có thể mất 10-30 phút)...")
-        return self.dong_goi_giong(thu_muc, duong_dan_zip, wwise, bao)
+            raise LoiDung(f"VieNeu dừng giữa chừng – xem {file_nhat_ky}\n" + "\n".join(loi_cuoi[-3:]))
+        return True
+
+    @staticmethod
+    def nhom_giong(ten):
+        """Ten file giong -> 'giong' (nguoi noi): unique_<ten>, unique_shop_<loai>, nhm_adult_soldier_1..."""
+        t = ten.split("_")
+        if t[0] == "unique" and len(t) > 2:
+            return "_".join(t[:3]) if t[1] == "shop" else "_".join(t[:2])
+        for i, x in enumerate(t[:6]):
+            if x.isdigit():
+                return "_".join(t[:i + 1])
+        return "_".join(t[:3])
+
+    @staticmethod
+    def thu_muc_lam_viec(thu_muc_game):
+        """Thu muc chua WAV (rat nang): o dia con trong nhieu nhat giua o game va o C."""
+        import shutil
+        ung_vien = []
+        for goc in {os.path.splitdrive(os.path.abspath(thu_muc_game))[0] + os.sep,
+                    os.path.splitdrive(os.path.expanduser("~"))[0] + os.sep}:
+            try:
+                ung_vien.append((shutil.disk_usage(goc).free, goc))
+            except Exception:
+                pass
+        goc = max(ung_vien)[1] if ung_vien else os.path.expanduser("~")
+        return os.path.join(goc, "DichGame_LongTieng")
+
+    def ke_hoach_long_tieng(self, phan, bao=lambda s: None):
+        """phan 'A' (nhan vat co ten, ca Kliff) / 'B' (dan thuong).
+        -> {giong: [dict(f, ten, en, vi, giay)]} – moi cau giong kem cau phu de (khop theo duoi ten file)."""
+        import struct
+        nhom_am = os.path.join(self.thu_muc_game, "0006")
+        if not os.path.isfile(os.path.join(nhom_am, "0.pamt")):
+            raise LoiDung("không thấy thư mục âm thanh tiếng Anh (0006) trong thư mục game")
+        bao("Đang đọc danh sách giọng nói trong game...")
+        ds = [f for f in cd.doc_pamt_day_du(os.path.join(nhom_am, "0.pamt"))
+              if f["duoi"] == ".wem" and "english" in f["thu_muc"]]
+        khoa = {}
+        for g in self.nhom.values():
+            for _, k, v in g["ds"]:
+                khoa.setdefault(k.lower(), v)
+        kq = {}
+        mo = {}
+        try:
+            for i, f in enumerate(ds):
+                ten = f["ten"]
+                giong = self.nhom_giong(ten)
+                if (phan == "A") != giong.startswith("unique_"):
+                    continue
+                t = ten.lower().split("_")
+                en = None
+                for j in range(1, len(t)):
+                    duoi = "_".join(t[j:])
+                    if duoi in khoa and re.search("[a-z]", duoi):
+                        en = khoa[duoi]
+                        break
+                vi = self.bo_nho.get(en) if en else None
+                if vi == en:
+                    vi = None
+                p = os.path.join(nhom_am, f"{f['paz']}.paz")
+                if p not in mo:
+                    mo[p] = open(p, "rb")
+                mo[p].seek(f["vt"])
+                dau = mo[p].read(min(f["nen"], 512))
+                tt = cd.thong_tin_wem(dau)
+                giay = tt.get("giay", 0)
+                if "mau" not in tt and tt.get("bps"):
+                    giay = f["goc"] / tt["bps"]
+                kq.setdefault(giong, []).append({"f": f, "ten": ten, "en": en, "vi": vi, "giay": giay})
+                if i % 3000 == 0:
+                    bao(f"Đang đọc danh sách giọng nói... {i:,}/{len(ds):,}".replace(",", "."))
+        finally:
+            for fh in mo.values():
+                fh.close()
+        return kq
+
+    def tao_mau_nhom(self, cau, thu_ra, vgm):
+        """Giong mau ~8-15 giay tu chinh cac cau goc cua nguoi noi nay (giai ma bang vgmstream)."""
+        import subprocess
+        import wave
+        import numpy as np
+        mau = os.path.join(thu_ra, "mau.wav")
+        if os.path.isfile(mau):
+            return mau
+        tam = os.path.join(thu_ra, "mau_tam")
+        os.makedirs(tam, exist_ok=True)
+        an = 0x08000000 if os.name == "nt" else 0
+        uu = sorted([c for c in cau if 3.0 <= c["giay"] <= 9.0], key=lambda c: -c["giay"]) + \
+            sorted([c for c in cau if 1.2 <= c["giay"] < 3.0 or 9.0 < c["giay"] <= 14.0], key=lambda c: -c["giay"])
+        nhom_am = os.path.join(self.thu_muc_game, "0006")
+        phan, tong = [], 0.0
+        for c in uu[:16]:
+            wem = os.path.join(tam, "x.wem")
+            ra = os.path.join(tam, "x.wav")
+            try:
+                with open(wem, "wb") as fh:
+                    fh.write(cd.doc_tep(nhom_am, c["f"]))
+                if os.path.exists(ra):
+                    os.remove(ra)
+                subprocess.run([vgm, "-o", ra, wem], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               creationflags=an, timeout=120)
+                if not os.path.isfile(ra):
+                    continue
+                self.chuan_wav(ra, ra + ".48k.wav")
+                x = self._doc_wav16(ra + ".48k.wav")
+            except Exception:
+                continue
+            if len(x) < 48000 or float(np.sqrt(np.mean(x ** 2))) < 0.01:
+                continue
+            phan.append(x)
+            tong += len(x) / 48000
+            if tong >= 9:
+                break
+        import shutil
+        shutil.rmtree(tam, ignore_errors=True)
+        if not phan:
+            return None
+        lang = np.zeros(int(0.3 * 48000), dtype=np.float32)
+        y = np.concatenate([np.concatenate([p, lang]) for p in phan])[: 15 * 48000]
+        with wave.open(mau, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(48000)
+            w.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
+        return mau
+
+    def ma_hoa_wwise(self, muc, wwise, thu_ra, tang_db=0.0, bao=lambda s: None, file_nhat_ky=None, lo=3000):
+        """muc: [(ten, duong_dan_wav)] -> {ten: duong_dan_wem} trong thu_ra. Chia lo de do ton o dia."""
+        import shutil
+        import subprocess
+        import xml.sax.saxutils as xs
+        an = 0x08000000 if os.name == "nt" else 0
+        tam = os.path.join(THU_MUC_CD, "wwise_tam")
+        shutil.rmtree(tam, ignore_errors=True)
+        os.makedirs(tam)
+        os.makedirs(thu_ra, exist_ok=True)
+        nk = open(file_nhat_ky or os.path.join(tam, "nhat_ky.txt"), "a", encoding="utf-8", errors="replace")
+        co = {}
+        try:
+            du_an = os.path.join(tam, "VH", "VH.wproj")
+            r = subprocess.run([wwise, "create-new-project", du_an, "--platform", "Windows", "--quiet"],
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=600)
+            nk.write(r.stdout.decode("utf-8", "replace"))
+            if not os.path.isfile(du_an):
+                raise LoiDung("Wwise không tạo được project tạm – xem nhật ký Wwise")
+            # bo qua cau da ma hoa o lan truoc (lam tiep)
+            for t in os.listdir(thu_ra):
+                if t.lower().endswith(".wem"):
+                    co[t[:-4]] = os.path.join(thu_ra, t)
+            con = [(t, w) for t, w in muc if t not in co]
+            for i in range(0, len(con), lo):
+                if self.dung.is_set():
+                    break
+                phan = con[i:i + lo]
+                nguon = os.path.join(tam, "nguon")
+                shutil.rmtree(nguon, ignore_errors=True)
+                os.makedirs(nguon)
+                for t, w in phan:
+                    self.chuan_wav(w, os.path.join(nguon, t + ".wav"), tang_db=tang_db)
+                ds = "\n".join(f'  <Source Path="{xs.escape(t)}.wav" Conversion="Vorbis Quality High" '
+                               f'Destination="{xs.escape(t)}.wem"/>' for t, _ in phan)
+                with open(os.path.join(tam, "ds.wsources"), "w", encoding="utf-8") as f:
+                    f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                            f'<ExternalSourcesList SchemaVersion="1" Root="{xs.escape(nguon)}">\n{ds}\n'
+                            '</ExternalSourcesList>\n')
+                bao(f"Wwise đang mã hóa {min(i + lo, len(con)):,}/{len(con):,} câu...".replace(",", "."))
+                ra_wem = os.path.join(tam, "ra")
+                shutil.rmtree(ra_wem, ignore_errors=True)
+                r = subprocess.run([wwise, "convert-external-source", du_an, "--platform", "Windows",
+                                    "--source-file", os.path.join(tam, "ds.wsources"), "--output", ra_wem],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an, timeout=4 * 3600)
+                nk.write(r.stdout.decode("utf-8", "replace")[-20000:])
+                for g, _, ts in os.walk(ra_wem):
+                    for t in ts:
+                        if t.lower().endswith(".wem"):
+                            dich = os.path.join(thu_ra, t)
+                            shutil.move(os.path.join(g, t), dich)
+                            co[t[:-4]] = dich
+        finally:
+            nk.close()
+            shutil.rmtree(tam, ignore_errors=True)
+        return co
+
+    def long_tieng_phan(self, phan, thu_muc_lv, duong_dan_zip, wwise, bao=lambda s: None, tang_db=6.0):
+        """Ca quy trinh cho phan A/B: ke hoach -> giong mau tung nguoi -> VieNeu -> Wwise -> zip DMM.
+        Chay lai thi lam tiep cho do. -> dict thong ke, None neu bi tam dung."""
+        import shutil
+        import numpy as np
+        nhom = self.ke_hoach_long_tieng(phan, bao)
+        can = {g: [c for c in ds if c["vi"] and self.lam_sach_loi(c["vi"])] for g, ds in nhom.items()}
+        can = {g: ds for g, ds in can.items() if ds}
+        tong = sum(len(v) for v in can.values())
+        if not tong:
+            raise LoiDung("chưa có câu thoại nào của phần này được Việt hóa – chạy Đợt 1 và Đợt 2 trước")
+        vn = self.tim_vieneu()
+        if not vn:
+            raise LoiDung("không tìm thấy app VieNeu (bản tăng tốc GPU) – mở VieNeu, cài 'GPU' rồi thử lại")
+        py, hf, gpu = vn
+        os.makedirs(thu_muc_lv, exist_ok=True)
+        can_gb = tong * 3.5 * 96000 / 1e9
+        trong = shutil.disk_usage(thu_muc_lv).free / 1e9
+        if trong < can_gb * 1.2 + 2:
+            raise LoiDung(f"ổ đĩa {thu_muc_lv[:3]} chỉ còn {trong:.0f} GB, cần khoảng {can_gb * 1.2 + 2:.0f} GB trống")
+        vgm = self.lay_vgmstream(bao)
+        viec = []
+        thieu_mau = []
+        for i, (g, ds) in enumerate(sorted(can.items(), key=lambda x: -len(x[1])), 1):
+            bao(f"Bước 2/4: tạo giọng mẫu {i}/{len(can)}: {g}")
+            thu = os.path.join(thu_muc_lv, phan, g)
+            os.makedirs(thu, exist_ok=True)
+            mau = self.tao_mau_nhom(nhom[g], thu, vgm)
+            if not mau:
+                thieu_mau.append(g)
+                continue
+            x = self._doc_wav16(mau)
+            rms = float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.08
+            viec.append({"ten": g, "mau": mau, "ra": os.path.join(thu, "wav"), "rms": min(max(rms, 0.03), 0.2),
+                         "ds": [[c["ten"], self.lam_sach_loi(c["vi"]), round(c["giay"], 3)] for c in ds]})
+            if self.dung.is_set():
+                return None
+        tam = os.path.join(THU_MUC_CD, "vieneu_tam")
+        os.makedirs(tam, exist_ok=True)
+        viec_json = os.path.join(tam, f"viec_{phan}.json")
+        with open(viec_json, "w", encoding="utf-8") as f:
+            json.dump({"nhom": viec, "toi_da": 1.4, "gpu": gpu}, f, ensure_ascii=False)
+        nk = os.path.join(thu_muc_lv, f"vieneu_nhat_ky_{phan}.txt")
+        if not self.chay_vieneu(viec_json, py, hf, gpu, nk,
+                                lambda a, b, ct: bao(f"Bước 3/4: VieNeu đã đọc {a:,}/{b:,} câu".replace(",", ".") + ct)):
+            return None
+        bao("Bước 4/4: Wwise đang mã hóa...")
+        muc, duong = [], {}
+        for v in viec:
+            for d in v["ds"]:
+                w = os.path.join(v["ra"], d[0] + ".wav")
+                if os.path.isfile(w):
+                    muc.append((d[0], w))
+        for ds in nhom.values():
+            for c in ds:
+                duong[c["ten"]] = c["f"]["thu_muc"]
+        # am luong thay doi thi ma hoa lai tu dau
+        thu_wem = os.path.join(thu_muc_lv, phan, f"_wem_{int(tang_db)}db")
+        co = self.ma_hoa_wwise(muc, wwise, thu_wem, tang_db, bao,
+                               os.path.join(thu_muc_lv, f"wwise_nhat_ky_{phan}.txt"))
+        if self.dung.is_set():
+            return None
+        ten_mod = {"A": "LongTieng_NhanVat", "B": "LongTieng_DanThuong"}[phan]
+        bao("Đang đóng gói cho DMM...")
+        so = 0
+        with zipfile.ZipFile(duong_dan_zip + ".tam", "w", zipfile.ZIP_STORED) as z:
+            for t, _ in muc:
+                p = co.get(t)
+                if p:
+                    z.write(p, f"{ten_mod}/0006/{duong[t]}/{t}.wem")
+                    so += 1
+        os.replace(duong_dan_zip + ".tam", duong_dan_zip)
+        return {"cau": so, "giong": len(viec), "thieu_mau": thieu_mau, "tong_game": sum(len(v) for v in nhom.values())}
 
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
@@ -1014,20 +1290,24 @@ except Exception:
     librosa = None
 from vieneu import Vieneu
 tts = Vieneu(mode="v3turbo", device="cuda" if viec.get("gpu") else "cpu")
-ra, mau, SR = viec["ra"], viec["mau"], 48000
-can = [d for d in viec["ds"] if not os.path.isfile(os.path.join(ra, d[0] + ".wav"))]
-can.sort(key=lambda d: len(d[1]))
-print("TONG", len(viec["ds"]), len(can), flush=True)
-nk = open(viec["nhat"], "a", encoding="utf-8")
+SR = 48000
+nhom = viec["nhom"]
+viec_lam = []
+for g in nhom:
+    os.makedirs(g["ra"], exist_ok=True)
+    can = [d for d in g["ds"] if not os.path.isfile(os.path.join(g["ra"], d[0] + ".wav"))]
+    can.sort(key=lambda d: len(d[1]))
+    viec_lam.append((g, can))
+tong = sum(len(c) for _, c in viec_lam)
+print("TONG", sum(len(g["ds"]) for g in nhom), tong, flush=True)
 
 def keo_gian(w, rate):
-    # doc nhanh hon, giu nguyen cao do; them dem 0.25 s 2 dau de cau ngan khong loi
     dem = np.zeros(int(0.25 * SR), np.float32)
     y = librosa.effects.time_stretch(np.concatenate([dem, w, dem]), rate=rate)
     d = int(len(dem) / rate)
     return y[d:len(y) - d] if len(y) > 2 * d else y
 
-def xu_ly(w, goc):
+def xu_ly(w, goc, rms):
     w = np.nan_to_num(np.asarray(w, dtype=np.float32).reshape(-1))
     if librosa is not None and len(w) > SR // 10:
         try:
@@ -1044,40 +1324,46 @@ def xu_ly(w, goc):
     w = np.nan_to_num(w)
     r = float(np.sqrt(np.mean(w ** 2))) if len(w) else 0
     if r > 1e-4:
-        w = w * (viec["rms"] / r)
+        w = w * (rms / r)
     dinh = float(np.max(np.abs(w))) if len(w) else 0
     if dinh > 0.97:
         w = w * (0.97 / dinh)
     return np.concatenate([np.zeros(int(0.05 * SR), np.float32), w, np.zeros(int(0.1 * SR), np.float32)])
 
 LO, xong = 16, 0
-for i in range(0, len(can), LO):
-    nhom = can[i:i + LO]
-    try:
-        wavs = tts.infer_batch([d[1] for d in nhom], ref_audio=mau)
-    except Exception as e:
-        print("lo loi, doc tung cau:", e, flush=True)
-        wavs = []
-        for d in nhom:
-            try:
-                wavs.append(tts.infer(d[1], ref_audio=mau))
-            except Exception as e2:
-                print("LOI", d[0], e2, flush=True)
-                wavs.append(None)
-    for d, w in zip(nhom, wavs):
-        if w is None or len(w) == 0:
-            continue
-        p = os.path.join(ra, d[0] + ".wav")
+for so, (g, can) in enumerate(viec_lam, 1):
+    print("NHOM", so, len(viec_lam), g["ten"], len(can), flush=True)
+    if not can:
+        continue
+    nk = open(os.path.join(g["ra"], "_da_tao.txt"), "a", encoding="utf-8")
+    for i in range(0, len(can), LO):
+        lo = can[i:i + LO]
         try:
-            y = xu_ly(w, float(d[2] or 0))
+            wavs = tts.infer_batch([d[1] for d in lo], ref_audio=g["mau"])
         except Exception as e:
-            print("LOI xu ly", d[0], e, flush=True)
-            y = np.nan_to_num(np.asarray(w, dtype=np.float32).reshape(-1))
-        sf.write(p + ".tam", y, SR, subtype="PCM_16", format="WAV")
-        os.replace(p + ".tam", p)
-        nk.write(d[0] + "\n")
-        nk.flush()
-    xong = min(i + LO, len(can))
-    print("XONG", xong, len(can), flush=True)
+            print("lo loi, doc tung cau:", e, flush=True)
+            wavs = []
+            for d in lo:
+                try:
+                    wavs.append(tts.infer(d[1], ref_audio=g["mau"]))
+                except Exception as e2:
+                    print("LOI", d[0], e2, flush=True)
+                    wavs.append(None)
+        for d, w in zip(lo, wavs):
+            if w is None or len(w) == 0:
+                continue
+            p = os.path.join(g["ra"], d[0] + ".wav")
+            try:
+                y = xu_ly(w, float(d[2] or 0), g.get("rms", 0.08))
+            except Exception as e:
+                print("LOI xu ly", d[0], e, flush=True)
+                y = np.nan_to_num(np.asarray(w, dtype=np.float32).reshape(-1))
+            sf.write(p + ".tam", y, SR, subtype="PCM_16", format="WAV")
+            os.replace(p + ".tam", p)
+            nk.write(d[0] + "\n")
+            nk.flush()
+        xong += len(lo)
+        print("XONG", xong, tong, flush=True)
+    nk.close()
 print("HET", flush=True)
 """

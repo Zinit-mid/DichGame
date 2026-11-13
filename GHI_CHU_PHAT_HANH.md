@@ -1,3 +1,13 @@
+## Dịch Game v6.5.0
+
+- Mới: lồng tiếng Việt cho TẤT CẢ nhân vật Crimson Desert, chia 2 phần:
+  - Phần A – nhân vật cốt truyện (Kliff + khoảng 220 người có tên, ~21.000 câu)
+  - Phần B – dân thường (lính, người đi đường, chủ tiệm…, ~42.000 câu)
+- Mỗi người được nhái giọng gốc của chính họ (tự lấy mẫu từ game), câu dài đọc nhanh hơn cho vừa thời gian
+- Mới: chọn âm lượng giọng Việt (Như cũ / To / Rất to), mặc định To; đổi âm lượng chỉ cần bấm lại, không phải đọc lại
+- File làm việc để ở ổ đĩa còn trống nhiều nhất (thư mục DichGame_LongTieng); kết quả nằm trên Desktop
+- Giữ máy thức trong lúc chạy; tắt giữa chừng thì lần sau làm tiếp
+
 ## Dịch Game v6.4.1
 
 - Sửa lỗi lồng tiếng tự động dừng giữa chừng ở câu rất ngắn ("t_out values must be in the range") – câu lỗi giờ được bỏ qua bước ép thời gian chứ không làm dừng cả việc

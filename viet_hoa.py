@@ -944,12 +944,24 @@ class App:
         hang3.pack(fill="x", pady=(2, 6))
         self._nut(hang3, "Lồng tiếng Kliff – trích file giọng (thử)", lambda: self._cd_trich_giong(g),
                   nho=True).pack(side="left")
-        self._nut(hang3, "Đóng gói giọng Việt cho DMM (thử)", lambda: self._cd_dong_giong(g),
+        self._nut(hang3, "Đóng gói lại giọng Việt cho DMM", lambda: self._cd_dong_giong(g),
                   nho=True).pack(side="left", padx=6)
+        hang5 = tk.Frame(w, bg=UI_NEN)
+        hang5.pack(fill="x", pady=(8, 4))
+        tk.Label(hang5, text="Âm lượng giọng Việt:", bg=UI_NEN, fg=UI_CHU,
+                 font=("Segoe UI", 11)).pack(side="left", padx=(0, 6))
+        self.cd_nut_al = {}
+        for db, ten in ((0.0, "Như cũ"), (6.0, "To"), (10.0, "Rất to")):
+            b = self._nut(hang5, ten, lambda db=db: self._chon_al(db), nho=True)
+            b.pack(side="left", padx=2)
+            self.cd_nut_al[db] = b
+        self._chon_al(float(self.cfg.get("cd_am_luong_db", 6.0)))
         hang4 = tk.Frame(w, bg=UI_NEN)
-        hang4.pack(fill="x", pady=(2, 6))
-        self._nut(hang4, "Lồng tiếng Kliff TỰ ĐỘNG – VieNeu nhái giọng, cả 2.111 câu (chạy qua đêm)",
-                  lambda: self._cd_long_tieng_tu_dong(g), chinh=True).pack(side="left")
+        hang4.pack(fill="x", pady=(2, 4))
+        self._nut(hang4, "Lồng tiếng A – nhân vật cốt truyện (Kliff + 220 người)",
+                  lambda: self._cd_long_tieng_phan(g, "A"), chinh=True).pack(side="left")
+        self._nut(hang4, "Lồng tiếng B – dân thường",
+                  lambda: self._cd_long_tieng_phan(g, "B"), chinh=True).pack(side="left", padx=6)
         self.cd_tien_do = nhan("", UI_VANG, 10)
         self.cd_tien_do.pack(fill="x", pady=(6, 0))
         self.cd_viec = None
@@ -1141,13 +1153,88 @@ class App:
 
         def chay():
             try:
-                dong = viec.dong_goi_giong(thu, zip_ra, wwise, bao)
+                dong = viec.dong_goi_giong(thu, zip_ra, wwise, bao, getattr(self, "cd_al", 6.0))
                 chu = ("Đã tạo Desktop\\LongTieng_Kliff_DMM.zip – Import vào DMM, bật, Mount Mods rồi vào game nghe thử.\n"
                        + "\n".join(dong[:12]))
                 self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
             except Exception as e:
                 bao(f"Lỗi đóng gói giọng: {e}")
             finally:
+                self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _chon_al(self, db):
+        self.cd_al = db
+        for k, b in self.cd_nut_al.items():
+            b.config(bg=UI_DO if k == db else UI_O)
+            b.bind("<Leave>", lambda e, b=b, k=k: b.config(bg=UI_DO if k == self.cd_al else UI_O))
+        if self.cfg.get("cd_am_luong_db") != db:
+            self.cfg["cd_am_luong_db"] = db
+            ghi_json(FILE_CAU_HINH, self.cfg)
+
+    def _cd_long_tieng_phan(self, g, phan):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        import viet_hoa_cd as vcd
+        if not vcd.ViecDich.tim_vieneu():
+            self.messagebox.showwarning("Chưa có VieNeu",
+                                        "Không thấy app VieNeu trên máy.\nMở VieNeu, cài bản tăng tốc GPU rồi thử lại.")
+            return
+        wwise = vcd.ViecDich.tim_wwise_console()
+        if not wwise:
+            p = self.filedialog.askopenfilename(title="Chọn WwiseConsole.exe (trong thư mục cài Wwise\\Authoring\\x64\\Release\\bin)",
+                                                filetypes=[("WwiseConsole.exe", "WwiseConsole.exe")])
+            if not p:
+                return
+            wwise = p
+        lv = vcd.ViecDich.thu_muc_lam_viec(g["thu_muc"])
+        ten = {"A": "nhân vật cốt truyện (Kliff, Oongka, Yann, Damian…)", "B": "dân thường (lính, người đi đường, chủ tiệm…)"}[phan]
+        gio = {"A": "khoảng 1,5–2 giờ", "B": "khoảng 4 giờ"}[phan]
+        zip_ten = {"A": "LongTieng_A_NhanVat.zip", "B": "LongTieng_B_DanThuong.zip"}[phan]
+        if not self.messagebox.askyesno(
+                f"Lồng tiếng phần {phan}",
+                f"Lồng tiếng Việt cho {ten}.\n\n"
+                f"• Thời gian: {gio} (ước tính). Mỗi người được nhái giọng gốc của chính họ.\n"
+                f"• File làm việc (khá nặng) để ở: {lv}\n"
+                f"• Kết quả: Desktop\\{zip_ten}\n\n"
+                "• Tắt game và ĐÓNG app VieNeu trước. Laptop thì cắm sạc.\n"
+                "• Máy được giữ thức tới khi xong. Tắt giữa chừng thì lần sau bấm lại sẽ làm tiếp.\n\nBắt đầu?"):
+            return
+        zip_ra = os.path.join(thu_muc_desktop(), zip_ten)
+        viec = self.cd_viec
+        viec.dung.clear()
+        self.cd_dang_chay = True
+        tang = getattr(self, "cd_al", 6.0)
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=f"Phần {phan}: {s}", fg=UI_VANG)))
+
+        def chay():
+            giu = False
+            try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                kq = viec.long_tieng_phan(phan, lv, zip_ra, wwise, bao, tang)
+                if kq is None:
+                    bao("đã tạm dừng – bấm lại để làm tiếp.")
+                    return
+                chu = (f"Xong phần {phan}! {kq['cau']:,} câu của {kq['giong']} giọng → Desktop\\{zip_ten}\n".replace(",", ".")
+                       + "Tắt game → DMM: Import gói này, bật, Mount Mods → vào game."
+                       + ("\nPhần A đã gồm Kliff: tắt gói LongTieng_Kliff cũ trong DMM." if phan == "A" else "")
+                       + (f"\nKhông lấy được giọng mẫu cho {len(kq['thieu_mau'])} giọng (bỏ qua)." if kq["thieu_mau"] else ""))
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+                try:
+                    subprocess.Popen(["explorer", "/select,", zip_ra])
+                except Exception:
+                    pass
+            except Exception as e:
+                bao(f"Lỗi: {e}")
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
                 self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
         threading.Thread(target=chay, daemon=True).start()
 
@@ -1189,7 +1276,7 @@ class App:
                 if os.name == "nt":
                     # ES_CONTINUOUS | ES_SYSTEM_REQUIRED: khong cho may ngu trong luc chay
                     giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
-                dong = viec.long_tieng_tu_dong(thu, zip_ra, wwise, bao)
+                dong = viec.long_tieng_tu_dong(thu, zip_ra, wwise, bao, getattr(self, "cd_al", 6.0))
                 if dong is None:
                     bao("Đã tạm dừng lồng tiếng – bấm lại để làm tiếp.")
                     return
