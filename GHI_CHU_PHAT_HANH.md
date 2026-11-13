@@ -1,3 +1,8 @@
+## Dịch Game v6.10.1
+
+- Sửa: nút "Danh sách rương" trên trang Bản đồ Crimson Desert không mở được (trang Game8 chặn) – đổi sang trang khác
+- Sửa: Việt hóa Rise of the Tomb Raider cài xong vào game vẫn tiếng Anh – thiếu file gói chung .000.000.tiger, giờ app tự tạo (Gỡ cũng xóa luôn)
+
 ## Dịch Game v6.10.0 – Bản đồ Crimson Desert
 
 - Thêm trang "Bản đồ Crimson Desert" ở menu Công cụ game

@@ -28,6 +28,7 @@ LOCALE_EN = 0xFFFF0001
 TEN_MOD = "viethoa_dichgame"
 TEP_NFO = f"bigfile._mod.{TEN_MOD}.000.000.nfo"
 TEP_TIGER = f"bigfile._mod.{TEN_MOD}.000_ENGLISH.000.tiger"
+TEP_TIGER_GOC = f"bigfile._mod.{TEN_MOD}.000.000.tiger"   # goi chung (rong) - game bat buoc phai co
 MAGIC_TIGER = 0x53464154
 MAGIC_CDRM = 0x4D524443
 NGON_NGU = ["ENGLISH", "FRENCH", "GERMAN", "ITALIAN", "LATAMSPANISH", "IBERSPANISH", "JAPANESE", "PORTUGUESE",
@@ -138,8 +139,8 @@ def ghi_nfo(duong_dan, bap, phien_ban, ma, steam=None):
     if steam:
         dong.append(f"custom {steam}")
     dong.append("custom mod:Viet hoa (Dich Game)")
-    with open(duong_dan, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(dong) + "\n")
+    with open(duong_dan, "w", encoding="utf-8", newline="") as f:
+        f.write("\r\n".join(dong) + "\r\n")
 
 
 # ================================================================ locals.bin
@@ -211,6 +212,8 @@ def quet(thu_muc):
     for t in os.listdir(thu_muc):
         if not t.endswith(".000.tiger") or not t.startswith("bigfile"):
             continue
+        if TEN_MOD in t:   # goi cua chinh app: cai lai se thay the
+            continue
         p = os.path.join(thu_muc, t)
         try:
             dau, ds = doc_tiger(p)
@@ -228,7 +231,7 @@ def quet(thu_muc):
                         _thu_tu_ngon_ngu(t))
                 ung_vien.append((khoa, p, muc))
     for t in os.listdir(thu_muc):   # id cua goi mod khac cung tinh vao
-        if t.startswith("bigfile._mod.") and t.endswith(".nfo"):
+        if t.startswith("bigfile._mod.") and t.endswith(".nfo") and TEN_MOD not in t:
             try:
                 id_max = max(id_max, doc_nfo(os.path.join(thu_muc, t)).get("dlcindex", 0))
             except Exception:
@@ -377,12 +380,13 @@ class ViecRottr(vcd.ViecDich):
         tt = self.tt
         ma = tt["id_max"] + 1
         du_lieu = ghi_locals(lang, khoa, moi, n)
+        tao_tiger(os.path.join(self.thu_muc_game, TEP_TIGER_GOC), ma, [])
         tao_tiger(os.path.join(self.thu_muc_game, TEP_TIGER), ma, [(BAM_LOCALS, LOCALE_EN, du_lieu)])
         ghi_nfo(os.path.join(self.thu_muc_game, TEP_NFO), tt["bap"], tt["phien_ban_max"] + 1, ma, tt["steam"])
         return doi
 
     def go(self):
-        for t in (TEP_TIGER, TEP_NFO, TEP_NFO + ".disabled"):
+        for t in (TEP_TIGER, TEP_TIGER_GOC, TEP_NFO, TEP_NFO + ".disabled"):
             p = os.path.join(self.thu_muc_game, t)
             if os.path.isfile(p):
                 os.remove(p)

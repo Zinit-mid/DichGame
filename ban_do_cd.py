@@ -15,7 +15,7 @@ import giao_dien as gd
 BAN_DO_ONLINE = [
     ("Bản đồ MapMaster", "Lọc rương, thú cưỡi, trang bị", "https://mapmaster.io/games/crimson-desert/maps/crimson-desert"),
     ("Bản đồ th.gl", "Có app overlay đè lên game", "https://crimsondesert.th.gl/"),
-    ("Danh sách rương (Game8)", "Rương + két sắt có lời giải", "https://game8.co/games/Crimson-Desert/archives/587688"),
+    ("Danh sách rương", "Rương + két sắt và phần thưởng", "https://thegameswiki.com/crimson-desert/wiki/treasure-chest-locations"),
 ]
 
 NHOM = [
