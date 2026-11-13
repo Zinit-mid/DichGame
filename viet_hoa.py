@@ -738,23 +738,16 @@ class App:
 
     # ---------------------------------------------------------- dung giao dien
     def _nut(self, cha, chu, cmd, chinh=False, nho=False):
-        tk = self.tk
-        nen, hover = (UI_DO, UI_DO_HOVER) if chinh else (UI_O, UI_O_HOVER)
-        b = tk.Label(cha, text=chu, bg=nen, fg="#ffffff" if chinh else UI_CHU, cursor="hand2",
-                     font=("Segoe UI", 9 if nho else 10, "bold" if chinh else "normal"),
-                     padx=10 if nho else 14, pady=3 if nho else 6)
-        b.bind("<Button-1>", lambda e: cmd())
-        b.bind("<Enter>", lambda e: b.config(bg=hover))
-        b.bind("<Leave>", lambda e: b.config(bg=nen))
-        return b
+        import giao_dien as gd
+        return gd.NutTron(cha, chu, cmd, kieu="chinh" if chinh else "thuong", nho=nho)
 
     def _giao_dien(self):
         tk = self.tk
         dau = tk.Frame(self.root, bg=UI_NEN, padx=16, pady=12)
         dau.pack(fill="x")
-        tk.Label(dau, text="Việt Hóa Game", bg=UI_NEN, fg=UI_CHU, font=("Segoe UI", 16, "bold")).pack(side="left")
+        tk.Label(dau, text="Việt Hóa Game", bg=UI_NEN, fg=UI_CHU, font=ft(16, "bold")).pack(side="left")
         if not self.nhung:
-            tk.Label(dau, text=f"v{APP_VERSION}", bg=UI_NEN, fg=UI_PHU, font=("Segoe UI", 9)).pack(
+            tk.Label(dau, text=f"v{APP_VERSION}", bg=UI_NEN, fg=UI_PHU, font=ft(9)).pack(
                 side="left", padx=(8, 0), pady=(6, 0))
         self.nut_cap_nhat = self._nut(dau, "Kiểm tra cập nhật", self.cap_nhat, nho=True)
         if not self.nhung:
@@ -769,7 +762,7 @@ class App:
         self.bien_loc = tk.BooleanVar(value=bool(self.cfg.get("chi_co_viet_hoa", False)))
         tk.Checkbutton(thanh, text="Chỉ hiện game có Việt hóa", variable=self.bien_loc, command=self._doi_loc,
                        bg=UI_NEN, fg=UI_CHU, selectcolor=UI_O, activebackground=UI_NEN,
-                       activeforeground=UI_CHU, font=("Segoe UI", 9)).pack(side="left", padx=10)
+                       activeforeground=UI_CHU, font=ft(9)).pack(side="left", padx=10)
 
         khung = tk.Frame(self.root, bg=UI_NEN, padx=16, pady=10)
         khung.pack(fill="both", expand=True)
@@ -786,7 +779,7 @@ class App:
 
         day = tk.Frame(self.root, bg=UI_THE, padx=16, pady=8)
         day.pack(fill="x", side="bottom")
-        self.lbl_tt = tk.Label(day, text="", bg=UI_THE, fg=UI_PHU, font=("Segoe UI", 9), anchor="w",
+        self.lbl_tt = tk.Label(day, text="", bg=UI_THE, fg=UI_PHU, font=ft(9), anchor="w",
                                justify="left", wraplength=760)
         self.lbl_tt.pack(fill="x")
 
@@ -814,7 +807,7 @@ class App:
             the.pack(fill="x", pady=(0, 6))
             trai = tk.Frame(the, bg=UI_THE)
             trai.pack(side="left", fill="x", expand=True)
-            tk.Label(trai, text=g["ten"], bg=UI_THE, fg=UI_CHU, font=("Segoe UI", 11, "bold"),
+            tk.Label(trai, text=g["ten"], bg=UI_THE, fg=UI_CHU, font=ft(11, "bold"),
                      anchor="w").pack(fill="x")
             bg = self.ql.ban_ghi(g)
             chu_tt, mau = TRANG_THAI[tt]
@@ -822,9 +815,9 @@ class App:
                 chu_tt = "Đã cài GÓI THỬ ✓ (bấm Khôi phục để gỡ)"
             if goi and tt in ("co_viet_hoa", "co_ban_moi"):
                 chu_tt += f" • gói v{goi.get('phien_ban', '?')}"
-            tk.Label(trai, text=chu_tt, bg=UI_THE, fg=mau, font=("Segoe UI", 9), anchor="w").pack(fill="x")
+            tk.Label(trai, text=chu_tt, bg=UI_THE, fg=mau, font=ft(9), anchor="w").pack(fill="x")
             tk.Label(trai, text=f"{TEN_NGUON.get(g['nguon'], g['nguon'])} • {g['thu_muc']}", bg=UI_THE,
-                     fg=UI_PHU, font=("Segoe UI", 8), anchor="w").pack(fill="x")
+                     fg=UI_PHU, font=ft(8), anchor="w").pack(fill="x")
             phai = tk.Frame(the, bg=UI_THE)
             phai.pack(side="right")
             if bg:
@@ -850,7 +843,7 @@ class App:
         if not hien:
             tk.Label(self.ds, text=("Không tìm thấy game nào. Bấm \"+ Thêm game bằng tay\" để chọn thư mục game."
                                     if not self.bien_loc.get() else "Chưa có game nào đã cài trên máy có Việt hóa."),
-                     bg=UI_NEN, fg=UI_PHU, font=("Segoe UI", 10)).pack(pady=30)
+                     bg=UI_NEN, fg=UI_PHU, font=ft(10)).pack(pady=30)
 
     # ---------------------------------------------------------- viec nen
     def _nen(self, viec, xong_chu=None):
@@ -1020,7 +1013,7 @@ class App:
         w.geometry("640x520")
         w.protocol("WM_DELETE_WINDOW", lambda: self._dong_cd(w))
         nhan = lambda chu, mau=UI_CHU, co=10, dam=False: tk.Label(
-            w, text=chu, bg=UI_NEN, fg=mau, font=("Segoe UI", co, "bold" if dam else "normal"),
+            w, text=chu, bg=UI_NEN, fg=mau, font=ft(co, "bold" if dam else "normal"),
             anchor="w", justify="left", wraplength=600)
         hang0 = tk.Frame(w, bg=UI_NEN)
         hang0.pack(fill="x")
@@ -1041,7 +1034,7 @@ class App:
         self.cd_tk.pack(fill="x")
         hang_m = tk.Frame(w, bg=UI_NEN)
         hang_m.pack(fill="x", pady=(12, 0))
-        tk.Label(hang_m, text="Máy dịch:", bg=UI_NEN, fg=UI_CHU, font=("Segoe UI", 10)).pack(side="left", padx=(0, 8))
+        tk.Label(hang_m, text="Máy dịch:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
         self.cd_may = "claude"
         self.cd_nut_may = {}
         for k, chu in (("claude", "Claude (tốn tiền, hay hơn)"), ("offline", "Offline (miễn phí)")):
@@ -1051,7 +1044,7 @@ class App:
         hang = tk.Frame(w, bg=UI_NEN)
         hang.pack(fill="x", pady=(8, 4))
         tk.Label(hang, text="Giới hạn tiền mỗi lần chạy:", bg=UI_NEN, fg=UI_CHU,
-                 font=("Segoe UI", 10)).pack(side="left", padx=(0, 8))
+                 font=ft(10)).pack(side="left", padx=(0, 8))
         self.cd_gh = 2.0
         self.cd_nut_gh = {}
         for v in (1.0, 2.0, 5.0):
@@ -1074,7 +1067,7 @@ class App:
         hang5 = tk.Frame(w, bg=UI_NEN)
         hang5.pack(fill="x", pady=(8, 4))
         tk.Label(hang5, text="Âm lượng giọng Việt:", bg=UI_NEN, fg=UI_CHU,
-                 font=("Segoe UI", 11)).pack(side="left", padx=(0, 6))
+                 font=ft(11)).pack(side="left", padx=(0, 6))
         self.cd_nut_al = {}
         for db, ten in ((0.0, "Như cũ"), (6.0, "To"), (10.0, "Rất to")):
             b = self._nut(hang5, ten, lambda db=db: self._chon_al(db), nho=True)
@@ -1450,6 +1443,11 @@ class App:
 MAU_O_GAME = ["#8a2b24", "#2c4a7a", "#4a3a6e", "#2f5f55", "#7a5a1f", "#5a2f62", "#24606e", "#6e3b2a"]
 
 
+def ft(co, kieu=""):
+    import giao_dien as gd
+    return gd.font(co, "" if kieu == "normal" else kieu)
+
+
 def chu_tat(ten):
     t = [x for x in re.split(r"[\s:_\-]+", ten) if x]
     if not t:
@@ -1477,7 +1475,7 @@ class ThuVien(App):
         self.dang_ban = False
         self.ban_moi = None
         self.root = root
-        self.f = f or (lambda co, kieu="": ("Segoe UI", co, kieu) if kieu else ("Segoe UI", co))
+        self.f = f or (lambda co, kieu="": ft(co, kieu) if kieu else ft(co))
         self.p = p or (lambda n: n)
         self.tao_cuon = tao_cuon
         self.trai, self.giua = khung_trai, khung_giua
@@ -1489,25 +1487,9 @@ class ThuVien(App):
 
     # ---------- phan tu
     def _nut(self, cha, chu, cmd, chinh=False, nho=False, lon=False, phu=""):
-        tk = self.tk
-        nen, hover = (UI_DO, UI_DO_HOVER) if chinh else (UI_O, UI_O_HOVER)
-        if lon:
-            b = tk.Frame(cha, bg=nen, cursor="hand2", padx=self.p(10), pady=self.p(10))
-            l1 = tk.Label(b, text=chu, bg=nen, fg="#ffffff" if chinh else UI_CHU, font=self.f(11, "bold"))
-            l1.pack()
-            l2 = tk.Label(b, text=phu, bg=nen, fg="#ffe1de" if chinh else UI_PHU, font=self.f(8))
-            l2.pack()
-            ds = (b, l1, l2)
-        else:
-            b = tk.Label(cha, text=chu, bg=nen, fg="#ffffff" if chinh else UI_CHU, cursor="hand2",
-                         font=self.f(9 if nho else 10, "bold" if chinh else ""),
-                         padx=self.p(10 if nho else 14), pady=self.p(4 if nho else 7))
-            ds = (b,)
-        for w in ds:
-            w.bind("<Button-1>", lambda e: cmd())
-            w.bind("<Enter>", lambda e: [x.config(bg=hover) for x in ds])
-            w.bind("<Leave>", lambda e: [x.config(bg=nen) for x in ds])
-        return b
+        import giao_dien as gd
+        return gd.NutTron(cha, chu, cmd, kieu="chinh" if chinh else "thuong", nho=nho and not lon,
+                          phu=phu if lon else "", co=12 if lon else None)
 
     def _o_tat(self, cha, ten, co):
         tk = self.tk
@@ -1773,7 +1755,7 @@ class ThuVien(App):
             w.destroy()
         w.protocol("WM_DELETE_WINDOW", dong)
         nhan = lambda chu, mau=UI_CHU, co=10, dam=False: tk.Label(
-            w, text=chu, bg=UI_NEN, fg=mau, font=("Segoe UI", co, "bold" if dam else "normal"),
+            w, text=chu, bg=UI_NEN, fg=mau, font=ft(co, "bold" if dam else "normal"),
             anchor="w", justify="left", wraplength=630)
         nhan("Việt hóa Rise of the Tomb Raider", co=13, dam=True).pack(fill="x")
         nhan("• App đọc chữ tiếng Anh của game (locals.bin trong các gói .tiger), dịch, rồi tạo MỘT GÓI MỚI "
@@ -1784,10 +1766,10 @@ class ThuVien(App):
         the = tk.Frame(w, bg=UI_THE, padx=12, pady=10)
         the.pack(fill="x")
         tk.Label(the, text="BƯỚC 1 – KIỂM TRA FONT (làm trước)", bg=UI_THE, fg=UI_VANG,
-                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x")
+                 font=ft(9, "bold"), anchor="w").pack(fill="x")
         tk.Label(the, text="Cài gói thử: chỉ đổi chữ menu chính (Tiếp tục, Tùy chọn, Danh sách ắằẳ…). Vào game xem "
                            "chữ có dấu hiện đúng không. Nếu ra ô vuông / mất chữ → dùng kiểu \"không dấu\".",
-                 bg=UI_THE, fg=UI_PHU, font=("Segoe UI", 9), anchor="w", justify="left",
+                 bg=UI_THE, fg=UI_PHU, font=ft(9), anchor="w", justify="left",
                  wraplength=620).pack(fill="x", pady=(2, 6))
         h = tk.Frame(the, bg=UI_THE)
         h.pack(fill="x")
@@ -1795,13 +1777,13 @@ class ThuVien(App):
         self._nut(h, "Cài gói thử (không dấu)", lambda: self._rt_cai(thu=True, khong_dau=True), nho=True).pack(
             side="left", padx=6)
 
-        tk.Label(w, text="BƯỚC 2 – DỊCH", bg=UI_NEN, fg=UI_VANG, font=("Segoe UI", 9, "bold"),
+        tk.Label(w, text="BƯỚC 2 – DỊCH", bg=UI_NEN, fg=UI_VANG, font=ft(9, "bold"),
                  anchor="w").pack(fill="x", pady=(12, 2))
         self.rt_tk = nhan("Đang đọc chữ của game...", UI_CHU, 10)
         self.rt_tk.pack(fill="x")
         hang_m = tk.Frame(w, bg=UI_NEN)
         hang_m.pack(fill="x", pady=(8, 0))
-        tk.Label(hang_m, text="Máy dịch:", bg=UI_NEN, fg=UI_CHU, font=("Segoe UI", 10)).pack(side="left", padx=(0, 8))
+        tk.Label(hang_m, text="Máy dịch:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
         self.rt_may = self.cfg.get("rt_may", "claude")
         self.rt_nut_may = {}
         for k, chu in (("claude", "Claude (tốn tiền, hay hơn)"), ("offline", "Offline (miễn phí)")):
@@ -1811,7 +1793,7 @@ class ThuVien(App):
         hang = tk.Frame(w, bg=UI_NEN)
         hang.pack(fill="x", pady=(8, 4))
         tk.Label(hang, text="Giới hạn tiền mỗi lần chạy:", bg=UI_NEN, fg=UI_CHU,
-                 font=("Segoe UI", 10)).pack(side="left", padx=(0, 8))
+                 font=ft(10)).pack(side="left", padx=(0, 8))
         self.rt_gh = 2.0
         self.rt_nut_gh = {}
         for v in (1.0, 2.0, 5.0):
@@ -1824,7 +1806,7 @@ class ThuVien(App):
         self.rt_nut_chay.pack(side="left")
         self._nut(hang2, "Tạm dừng", self._rt_dung).pack(side="left", padx=6)
 
-        tk.Label(w, text="BƯỚC 3 – CÀI VÀO GAME", bg=UI_NEN, fg=UI_VANG, font=("Segoe UI", 9, "bold"),
+        tk.Label(w, text="BƯỚC 3 – CÀI VÀO GAME", bg=UI_NEN, fg=UI_VANG, font=ft(9, "bold"),
                  anchor="w").pack(fill="x", pady=(10, 2))
         hang3 = tk.Frame(w, bg=UI_NEN)
         hang3.pack(fill="x", pady=(2, 4))

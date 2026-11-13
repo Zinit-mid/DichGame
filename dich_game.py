@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.7.0"
+APP_VERSION = "6.8.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -38,6 +38,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import giao_dien as gd
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -94,7 +95,7 @@ FILE_BO_NHO = os.path.join(DU_LIEU, "ban_dich_da_luu.json")
 FILE_TU_DIEN = os.path.join(DU_LIEU, "tu_dien.json")
 FILE_KHOA = os.path.join(DU_LIEU, "khoa_api.txt")
 
-PHIEN_BAN_CAU_HINH = 12
+PHIEN_BAN_CAU_HINH = 13
 SO_VUNG_TOI_DA = 6
 TY_GIA = 26000
 
@@ -143,7 +144,7 @@ CAU_HINH_MAC_DINH = {
     "co_dinh_thay_claude": True,    # vung co dinh (tui do, tai lieu): doi sang ban Claude khi co
     "am_luong_giong": 1.0,
     "giam_tieng_game": 1.0,         # 1.0 giu nguyen | 0.5 | 0.25 | 0.0 tat tieng game khi doc
-    "co_giao_dien": 0.85,           # co chu / nut cua bang dieu khien (0.7 / 0.85 / 1.0)
+    "co_giao_dien": 1.15,           # co chu / nut cua bang dieu khien (1.0 Vua / 1.15 To / 1.3 Rat to)
     "thu_gon": False,
     "the_dang_mo": "chinh",
     "vi_tri_bang": None,
@@ -266,6 +267,10 @@ def nang_cap_cau_hinh(cfg):
     if cfg.get("phien_ban", 1) < 9 and cfg.pop("hoi_thoai_chi_google", False):
         cfg["che_do_hoi_thoai"] = "google"
     cfg.pop("hoi_thoai_chi_google", None)
+    if cfg.get("phien_ban", 1) < 13:
+        cu = float(cfg.get("co_giao_dien", 0.85))
+        cfg["co_giao_dien"] = 1.0 if cu <= 0.75 else (1.3 if cu >= 0.99 else 1.15)
+        cfg["kich_thuoc_bang"] = None
     if cfg.get("phien_ban", 1) < 12:
         cfg["kich_thuoc_bang"] = None   # giao dien 3 cot moi: bo kich thuoc bang cu (qua nho)
         cfg["thu_gon"] = False
@@ -1612,7 +1617,7 @@ class KhungBanDich:
     def _ve(self):
         cv, le = self.cv, self.LE
         cv.delete("all")
-        font = ("Segoe UI", self.co_chu, "bold")
+        font = (gd.FONT, self.co_chu, "bold")
         rong_chu = max(60, self.w - 2 * le)
         x0, neo, can = (self.w // 2, "n", "center") if self.can_giua else (le, "nw", "left")
         chu = self.van_ban
@@ -1620,7 +1625,7 @@ class KhungBanDich:
         if self.dang_chinh:
             nen = "#2b2b33"
             cv.configure(bg=nen)
-            cv.create_text(le, 6, text=f"■ {self.ten}", font=("Segoe UI", 9, "bold"), fill="#ffcc33", anchor="nw")
+            cv.create_text(le, 6, text=f"■ {self.ten}", font=(gd.FONT, 9, "bold"), fill="#ffcc33", anchor="nw")
             y0 = 26
             if not chu:
                 chu = "Kéo để di chuyển • kéo góc ◢ đổi độ rộng • lăn chuột đổi cỡ chữ"
@@ -1749,7 +1754,7 @@ class LopToanManHinh:
         self.dang_hien = True
 
     def _tieu_de(self, chu):
-        ve_chu_vien(self.cv, self.man["width"] - 20, 10, chu, ("Segoe UI", 11, "bold"),
+        ve_chu_vien(self.cv, self.man["width"] - 20, 10, chu, (gd.FONT, 11, "bold"),
                     self.man["width"] // 2, "ne", "right", 2)
 
     def cho(self, chu):
@@ -1766,7 +1771,7 @@ class LopToanManHinh:
         cv = self.cv
         cv.delete("all")
         for vi, (x, y, w, h), cao_dong in cac_doan:
-            font = ("Segoe UI", -max(12, int(cao_dong * 0.8)))
+            font = (gd.FONT, -max(12, int(cao_dong * 0.8)))
             t = cv.create_text(x, y, text=vi, font=font, fill=MAU_CHU, width=max(w, 160), anchor="nw")
             b = cv.bbox(t) or (x, y, x + w, y + h)
             r = cv.create_rectangle(min(b[0], x) - 5, min(b[1], y) - 3, max(b[2], x + w) + 5,
@@ -1832,6 +1837,8 @@ class TrangThai:
 class App:
     def __init__(self):
         self.cfg = nang_cap_cau_hinh(tron(CAU_HINH_MAC_DINH, doc_json(FILE_CAU_HINH, {})))
+        gd.TI_LE = float(self.cfg.get("co_giao_dien", 1.15))
+        gd.nap_font()
         self.root = tk.Tk()
         self.root.title(f"Dịch Game v{APP_VERSION}")
         self.root.configure(bg=UI_NEN)
@@ -1943,31 +1950,22 @@ class App:
         return ds[i]["id"] if i < len(ds) else None
 
     # ------------------------------------------------------------ phan tu giao dien
-    def _nut(self, cha, chu, lenh=None, kieu="thuong", rong=None, cmd=None, nho=False):
-        mau = {"thuong": (UI_O, UI_CHU, UI_O_HOVER), "chinh": (UI_DO, "#ffffff", UI_DO_HOVER)}[kieu]
-        b = tk.Button(cha, text=chu, command=cmd or (lambda: self.lenh(lenh)), bg=mau[0], fg=mau[1],
-                      activebackground=mau[2], activeforeground=mau[1], relief="flat", bd=0,
-                      highlightthickness=0, padx=self._p(8 if nho else 12), pady=self._p(3 if nho else 6),
-                      cursor="hand2", font=self._f(9) if nho else self._f(10))
-        if rong:
-            b.config(width=rong)
-        b.mau_nen, b.mau_hover = mau[0], mau[2]
-        b.bind("<Enter>", lambda e: b.config(bg=b.mau_hover))
-        b.bind("<Leave>", lambda e: b.config(bg=b.mau_nen))
-        return b
+    def _nut(self, cha, chu, lenh=None, kieu="thuong", rong=None, cmd=None, nho=False, bieu_tuong="", phu=""):
+        return gd.NutTron(cha, chu, cmd or (lambda: self.lenh(lenh)), kieu=kieu, nho=nho, rong=rong,
+                          bieu_tuong=bieu_tuong, phu=phu)
 
     def _dat_mau_nut(self, b, bat):
-        b.mau_nen = UI_DO if bat else UI_O
-        b.mau_hover = UI_DO_HOVER if bat else UI_O_HOVER
-        b.config(bg=b.mau_nen, fg="#ffffff" if bat else UI_CHU)
+        try:
+            b.dat_kieu("bat" if bat else "thuong")
+        except AttributeError:
+            b.config(bg=UI_DO if bat else UI_O, fg="#ffffff" if bat else UI_CHU)
 
     def _f(self, co, kieu=""):
-        ti_le = float(self.cfg.get("co_giao_dien", 0.85))
-        co = max(6, round(co * ti_le))
-        return ("Segoe UI", co, kieu) if kieu else ("Segoe UI", co)
+        gd.TI_LE = float(self.cfg.get("co_giao_dien", 1.15))
+        return gd.font(co, kieu)
 
     def _p(self, so):
-        return max(1, round(so * float(self.cfg.get("co_giao_dien", 0.85))))
+        return max(1, round(so * float(self.cfg.get("co_giao_dien", 1.15))))
 
     def _the(self, cha, tieu_de):
         ngoai = tk.Frame(cha, bg=UI_THE, padx=self._p(14), pady=self._p(10))
@@ -2041,13 +2039,16 @@ class App:
             side="left")
         tk.Label(dau, text="DỊCH GAME", bg=UI_SAU, fg=UI_CHU, font=self._f(15, "bold")).pack(side="left",
                                                                                           padx=(P(10), 0))
-        tk.Label(dau, text=f"v{APP_VERSION}", bg=UI_SAU, fg=UI_PHU, font=self._f(9)).pack(
-            side="left", padx=(P(8), 0), pady=(P(5), 0))
+        self.lbl_phien_ban = tk.Label(dau, text=f"v{APP_VERSION}", bg=UI_SAU, fg=UI_PHU, font=self._f(9),
+                                      cursor="hand2")
+        self.lbl_phien_ban.pack(side="left", padx=(P(10), 0), pady=(P(4), 0))
+        self.lbl_phien_ban.bind("<Button-1>", lambda e: self._kiem_tra_cap_nhat())
         self.nut_thu_gon = self._nut(dau, "", "thu_gon", nho=True)
         self.nut_thu_gon.pack(side="right")
-        self._nut(dau, "Cài đặt", cmd=self._mo_cai_dat, nho=True).pack(side="right", padx=(0, P(6)))
-        self._nut(dau, "Phím tắt", cmd=self._mo_phim_tat, nho=True).pack(side="right", padx=(0, P(6)))
-        self.nut_cap_nhat_dau = self._nut(dau, "", kieu="chinh", cmd=self._kiem_tra_cap_nhat, nho=True)
+        self._nut(dau, "Cài đặt", cmd=self._mo_cai_dat, nho=True, bieu_tuong="⚙").pack(side="right", padx=(0, P(6)))
+        self._nut(dau, "Phím tắt", cmd=lambda: self._mo_cai_dat("phim"), nho=True, bieu_tuong="⌨").pack(
+            side="right", padx=(0, P(6)))
+        self.nut_cap_nhat_dau = self._nut(dau, "", kieu="cam", cmd=self._cap_nhat_ngay, nho=True, bieu_tuong="⬆")
         vien = tk.Frame(dau, bg=UI_THE, padx=P(12), pady=P(5))
         vien.pack(side="right", padx=P(12))
         self.cv_den = tk.Canvas(vien, width=P(14), height=P(14), bg=UI_THE, highlightthickness=0)
@@ -2057,8 +2058,25 @@ class App:
         self.lbl_den_may = tk.Label(vien, text="", bg=UI_THE, fg=UI_PHU, font=self._f(9))
         self.lbl_den_may.pack(side="left", padx=(P(4), 0))
 
+        # ---------- thanh bao co ban moi (chi hien khi co ban moi)
+        self.thanh_cap_nhat = tk.Frame(goc, bg=gd.CAM, padx=P(16), pady=P(8))
+        tk.Label(self.thanh_cap_nhat, text="⬆", bg=gd.CAM, fg="#ffffff", font=self._f(16, "bold")).pack(
+            side="left", padx=(0, P(10)))
+        ben = tk.Frame(self.thanh_cap_nhat, bg=gd.CAM)
+        ben.pack(side="left", fill="x", expand=True)
+        self.lbl_cap_nhat = tk.Label(ben, text="", bg=gd.CAM, fg="#ffffff", font=self._f(12, "bold"), anchor="w")
+        self.lbl_cap_nhat.pack(fill="x")
+        self.lbl_cap_nhat_phu = tk.Label(ben, text="", bg=gd.CAM, fg="#fff3e0", font=self._f(9), anchor="w",
+                                         justify="left")
+        self.lbl_cap_nhat_phu.pack(fill="x")
+        self._nut(self.thanh_cap_nhat, "Cập nhật ngay", kieu="trang", cmd=self._cap_nhat_ngay,
+                  bieu_tuong="⬇").pack(side="right")
+        self._nut(self.thanh_cap_nhat, "Xem có gì mới", kieu="trong_cam", cmd=self._xem_ghi_chu_moi,
+                  nho=True).pack(side="right", padx=(0, P(8)))
+
         tt = tk.Frame(goc, bg=UI_THE, padx=P(14), pady=P(4))
         tt.pack(fill="x")
+        self.khung_tt = tt
         tt.bind("<Configure>", lambda e: self._doi_rong_chu(e.width))
         self.lbl_tt = tk.Label(tt, text="Đang khởi động...", bg=UI_THE, fg=UI_PHU, font=self._f(9),
                                wraplength=rong_chu, justify="left", anchor="w")
@@ -2087,7 +2105,7 @@ class App:
         trai.pack(side="left", fill="y")
         trai.pack_propagate(False)
         tk.Frame(self.than, bg=UI_VIEN, width=1).pack(side="left", fill="y")
-        phai = tk.Frame(self.than, bg=UI_CANH, width=P(430))
+        phai = tk.Frame(self.than, bg=UI_CANH, width=P(470))
         phai.pack(side="right", fill="y")
         phai.pack_propagate(False)
         tk.Frame(self.than, bg=UI_VIEN, width=1).pack(side="right", fill="y")
@@ -2144,9 +2162,9 @@ class App:
             c.pack(side="left")
             tk.Label(h, text=chu, bg=nen, fg=UI_PHU, font=self._f(8)).pack(side="left", padx=(P(4), P(12)))
         h = self._hang_le(r, (P(10), 0))
-        self._nut(h, f"Dịch ngay ({p['dich_ngay'].upper()})", "dich_ngay", nho=True).pack(
+        self._nut(h, f"Dịch ngay ({p['dich_ngay'].upper()})", "dich_ngay", nho=True, bieu_tuong="▶").pack(
             side="left", expand=True, fill="x", padx=(0, P(4)))
-        self._nut(h, f"Ẩn / Hiện ({p['an_hien'].upper()})", "an_hien", nho=True).pack(
+        self._nut(h, f"Ẩn / Hiện ({p['an_hien'].upper()})", "an_hien", nho=True, bieu_tuong="◐").pack(
             side="left", expand=True, fill="x")
 
         # ---- may dich
@@ -2175,9 +2193,12 @@ class App:
                                     wraplength=P(380))
         self.lbl_offline.pack(fill="x", padx=P(16), pady=(P(2), 0))
         h = self._hang_le(r)
-        self.nut_tai_mo_hinh = self._nut(h, "Tải mô hình offline (~400 MB)", cmd=self._tai_mo_hinh, nho=True)
-        self.nut_tai_mo_hinh.pack(side="left", padx=(0, P(4)))
-        self._nut(h, "Mã API Claude / DeepL…", cmd=self._mo_cai_dat, nho=True).pack(side="left")
+        self.nut_tai_mo_hinh = self._nut(h, "Tải mô hình offline (~400 MB)", cmd=self._tai_mo_hinh, nho=True,
+                                         bieu_tuong="⬇")
+        self.nut_tai_mo_hinh.pack(fill="x")
+        h = self._hang_le(r)
+        self._nut(h, "Mã API Claude / DeepL…", cmd=lambda: self._mo_cai_dat("may"), nho=True, bieu_tuong="⚙").pack(
+            fill="x")
         self.nut_claude = self._nut(r, "", "bat_tat_claude", nho=True)
         self.nut_claude.pack(fill="x", padx=P(16), pady=(P(4), 0))
         self.lbl_deepl = tk.Label(r, text="", bg=nen, fg=UI_PHU, font=self._f(8), anchor="w")
@@ -2186,12 +2207,14 @@ class App:
         # ---- vung quet chu
         self._tieu_de(r, "VÙNG QUÉT CHỮ")
         h = self._hang_le(r)
-        self._nut(h, "Khoanh vùng", cmd=lambda: self.chon_vung(self.vung_dang_sua), kieu="chinh", nho=True).pack(
+        self._nut(h, "Khoanh vùng", cmd=lambda: self.chon_vung(self.vung_dang_sua), kieu="chinh", nho=True,
+                  bieu_tuong="✚").pack(
             side="left", expand=True, fill="x", padx=(0, P(4)))
-        self._nut(h, "Cửa sổ game", cmd=self._lay_cua_so_game, nho=True).pack(side="left", expand=True, fill="x",
+        self._nut(h, "Cửa sổ game", cmd=self._lay_cua_so_game, nho=True, bieu_tuong="▣").pack(side="left", expand=True, fill="x",
                                                                               padx=(0, P(4)))
+        h = self._hang_le(r)
         self.nut_toan_man = self._nut(h, "", "dich_man_hinh", nho=True)
-        self.nut_toan_man.pack(side="left", expand=True, fill="x")
+        self.nut_toan_man.pack(fill="x")
         h = self._hang_le(r)
         self._nhan(h, "Toàn màn hình:", UI_PHU, self._f(9)).pack(side="left", padx=(0, P(8)))
         khung, self.nut_kieu_toan_man = self._cap(h, [("lien_tuc", "Liên tục"), ("mot_lan", "1 lần")],
@@ -2199,7 +2222,7 @@ class App:
         khung.pack(side="left")
         self.khung_ds_vung = tk.Frame(r, bg=nen)
         self.khung_ds_vung.pack(fill="x", padx=P(16), pady=(P(6), 0))
-        self.nut_them_vung = self._nut(r, "+ Thêm vùng", cmd=self._them_vung, nho=True)
+        self.nut_them_vung = self._nut(r, "Thêm vùng", cmd=self._them_vung, nho=True, bieu_tuong="✚")
         self.nut_them_vung.pack(anchor="w", padx=P(16), pady=(P(4), 0))
 
         # ---- khung chu dich
@@ -2270,8 +2293,18 @@ class App:
                    UI_PHU, self._f(8), wraplength=P(380), justify="left").pack(anchor="w", padx=P(16),
                                                                                pady=(0, P(20)))
 
+    TEN_PHIM = {"bat_tat_tu_dong": "Bật / tắt dịch màn hình", "dich_ngay": "Dịch ngay",
+                "an_hien": "Ẩn / hiện bản dịch", "dich_man_hinh": "Dịch cả màn hình",
+                "chon_hoi_thoai": "Chọn lại vùng 1 (hội thoại)", "chon_nhiem_vu": "Chọn lại vùng 2 (nhiệm vụ)",
+                "chinh_khung": "Chỉnh khung bằng chuột", "bat_tat_giong": "Bật / tắt giọng đọc",
+                "bat_tat_claude": "Bật / tắt Claude", "hoi_thoai_len": "Dời khung vùng 1 lên",
+                "hoi_thoai_xuong": "Dời khung vùng 1 xuống", "hoi_thoai_trai": "Dời khung vùng 1 sang trái",
+                "hoi_thoai_phai": "Dời khung vùng 1 sang phải", "nhiem_vu_len": "Dời khung vùng 2 lên",
+                "nhiem_vu_xuong": "Dời khung vùng 2 xuống", "nhiem_vu_trai": "Dời khung vùng 2 sang trái",
+                "nhiem_vu_phai": "Dời khung vùng 2 sang phải", "thoat": "Thoát app"}
+
     def _tao_cua_so_cai_dat(self):
-        """Cua so Cai dat (an san, bam nut Cai dat de mo): ma API, gioi han tien, giong doc, he thong."""
+        """Cua so Cai dat: menu ben trai, noi dung tung muc ben phai (an san, bam Cai dat de mo)."""
         P = self._p
         cu = getattr(self, "cs", None)
         if cu is not None:
@@ -2284,120 +2317,282 @@ class App:
         cs.withdraw()
         cs.title("Cài đặt – Dịch Game")
         cs.configure(bg=UI_NEN)
-        cs.geometry(f"{P(560)}x{min(P(820), int(self.man['height'] * 0.85))}")
+        cs.geometry(f"{min(P(900), int(self.man['width'] * 0.8))}x{min(P(700), int(self.man['height'] * 0.85))}")
+        cs.minsize(P(700), P(480))
         cs.protocol("WM_DELETE_WINDOW", cs.withdraw)
         try:
             cs.iconbitmap(os.path.join(getattr(sys, "_MEIPASS", THU_MUC_APP), "icon.ico"))
         except Exception:
             pass
-        ngoai, trong = self._tao_cuon(cs, UI_NEN)
-        ngoai.pack(fill="both", expand=True)
-        trai = tk.Frame(trong, bg=UI_NEN, padx=P(14), pady=P(12))
-        trai.pack(fill="both", expand=True)
 
-        t = self._the(trai, "Claude AI")
-        self.lbl_khoa = self._nhan(t, font=self._f(9))
+        menu = tk.Frame(cs, bg=UI_CANH, width=P(230))
+        menu.pack(side="left", fill="y")
+        menu.pack_propagate(False)
+        tk.Label(menu, text="CÀI ĐẶT", bg=UI_CANH, fg=UI_CHU, font=self._f(13, "bold"), anchor="w").pack(
+            fill="x", padx=P(18), pady=(P(18), P(12)))
+        tk.Frame(cs, bg=UI_VIEN, width=1).pack(side="left", fill="y")
+        ngoai, trong = self._tao_cuon(cs, UI_NEN)
+        ngoai.pack(side="left", fill="both", expand=True)
+        self.cs_trang = {}
+        self.cs_muc = {}
+        self.cs_cuon = trong.master
+
+        def muc(ma, bieu, ten):
+            f = tk.Frame(menu, bg=UI_CANH, cursor="hand2")
+            f.pack(fill="x", padx=P(8), pady=1)
+            vach = tk.Frame(f, bg=UI_CANH, width=P(4))
+            vach.pack(side="left", fill="y")
+            l = tk.Label(f, text=f"{bieu}   {ten}", bg=UI_CANH, fg=UI_CHU, font=self._f(11, "vua"), anchor="w",
+                         padx=P(12), pady=P(10))
+            l.pack(side="left", fill="x", expand=True)
+            for w in (f, l):
+                w.bind("<Button-1>", lambda e, m=ma: self._chon_trang_cai_dat(m))
+            self.cs_muc[ma] = (f, vach, l)
+            trang = tk.Frame(trong, bg=UI_NEN, padx=P(24), pady=P(20))
+            tk.Label(trang, text=ten, bg=UI_NEN, fg=UI_CHU, font=self._f(17, "bold"), anchor="w").pack(fill="x")
+            self.cs_trang[ma] = trang
+            return trang
+
+        def the(cha, tieu_de, mo_ta=""):
+            o = tk.Frame(cha, bg=UI_THE, padx=P(18), pady=P(14), highlightthickness=1, highlightbackground=UI_VIEN)
+            o.pack(fill="x", pady=(P(14), 0))
+            tk.Label(o, text=tieu_de, bg=UI_THE, fg=UI_CHU, font=self._f(12, "bold"), anchor="w").pack(fill="x")
+            if mo_ta:
+                tk.Label(o, text=mo_ta, bg=UI_THE, fg=UI_PHU, font=self._f(9), anchor="w", justify="left",
+                         wraplength=P(560)).pack(fill="x", pady=(P(2), P(4)))
+            return o
+
+        def o_ma(cha, luu, thu):
+            h = self._hang(cha, P(6))
+            o = tk.Entry(h, show="•", bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU, relief="flat",
+                         font=self._f(11))
+            o.pack(side="left", fill="x", expand=True, ipady=P(7), padx=(0, P(6)))
+            mat = self._nut(h, "◉", nho=True, cmd=lambda: o.config(show="" if o.cget("show") else "•"))
+            mat.pack(side="left", padx=(0, P(6)))
+            self._nut(h, "Lưu mã", kieu="chinh", nho=True, cmd=luu).pack(side="left", padx=(0, P(6)))
+            self._nut(h, "Thử", nho=True, cmd=thu).pack(side="left")
+            return o
+
+        # ---------- May dich & ma API
+        t = muc("may", "◈", "Máy dịch & mã API")
+        o = the(t, "Claude AI", "Dịch hay nhất, tốn ít tiền. Mã chỉ lưu trên máy này (%APPDATA%\\DichGame).")
+        self.lbl_khoa = self._nhan(o, font=self._f(10, "vua"))
         self.lbl_khoa.pack(anchor="w")
-        h = self._hang(t)
-        self.o_khoa = tk.Entry(h, show="•", width=26, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU,
-                               relief="flat", font=self._f(10))
-        self.o_khoa.pack(side="left", ipady=4, padx=(0, 6))
-        self._nut(h, "Lưu mã", cmd=self._luu_khoa, nho=True).pack(side="left", padx=(0, 2))
-        self._nut(h, "Thử", cmd=self._thu_claude, nho=True).pack(side="left")
-        h = self._hang(t)
+        self.o_khoa = o_ma(o, self._luu_khoa, self._thu_claude)
+        h = self._hang(o, P(6))
         self.nut_claude_cd = self._nut(h, "", "bat_tat_claude", nho=True)
         self.nut_claude_cd.pack(side="left")
-        h = self._hang(t)
-        self._nhan(h, "Giới hạn mỗi ngày:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 8))
-        khung, self.nut_gioi_han = self._cap(h, [(0, "Không"), (0.05, "$0.05"), (0.1, "$0.10"), (0.2, "$0.20")],
-                                             lambda g: self.lenh(f"gioi_han:{g}"))
-        khung.pack(side="left")
-        self.lbl_tien = self._nhan(t, mau=UI_PHU, font=self._f(9))
-        self.lbl_tien.pack(anchor="w", pady=(4, 0))
         self.bien_google = tk.BooleanVar(value=bool(self.cfg["hien_google_truoc"]))
-        self._o_chon(t, "Hiện bản Google trước trong lúc chờ Claude (nhanh hơn)", self.bien_google,
-                     self._doi_google_truoc).pack(anchor="w", pady=(4, 0))
-
-        t = self._the(trai, "DeepL")
-        self.lbl_khoa_deepl = self._nhan(t, font=self._f(9))
+        self._o_chon(o, "Hiện bản Google trước trong lúc chờ Claude (nhanh hơn)", self.bien_google,
+                     self._doi_google_truoc).pack(anchor="w", pady=(P(4), 0))
+        o = the(t, "DeepL", "Lấy mã miễn phí: deepl.com → API → gói Free (500.000 ký tự/tháng).")
+        self.lbl_khoa_deepl = self._nhan(o, font=self._f(10, "vua"))
         self.lbl_khoa_deepl.pack(anchor="w")
-        h = self._hang(t)
-        self.o_deepl = tk.Entry(h, show="•", width=26, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU,
-                                relief="flat", font=self._f(10))
-        self.o_deepl.pack(side="left", ipady=4, padx=(0, 6))
-        self._nut(h, "Lưu mã", cmd=self._luu_khoa_deepl, nho=True).pack(side="left", padx=(0, 2))
-        self._nut(h, "Thử", cmd=self._thu_deepl, nho=True).pack(side="left")
-        self._nhan(t, "Lấy mã miễn phí: deepl.com → API → gói Free (500.000 ký tự/tháng). "
-                      "Mã chỉ lưu trên máy này.", UI_PHU, self._f(8), wraplength=P(480),
-                   justify="left").pack(anchor="w", pady=(4, 0))
-
-        t = self._the(trai, "Dịch offline")
+        self.o_deepl = o_ma(o, self._luu_khoa_deepl, self._thu_deepl)
+        o = the(t, "Dịch offline", "Chạy bằng CPU trên máy, miễn phí, không cần mạng.")
+        self.lbl_offline_cd = self._nhan(o, "", UI_PHU, self._f(10), wraplength=P(560), justify="left")
+        self.lbl_offline_cd.pack(anchor="w")
         self.bien_thay = tk.BooleanVar(value=bool(self.cfg.get("thay_bang_claude")))
-        self._o_chon(t, "Hội thoại: đổi sang bản Claude khi có (chữ sẽ đổi 1 lần)", self.bien_thay,
-                     self._doi_thay).pack(anchor="w")
+        self._o_chon(o, "Hội thoại: đổi sang bản Claude khi có (chữ sẽ đổi 1 lần)", self.bien_thay,
+                     self._doi_thay).pack(anchor="w", pady=(P(4), 0))
         self.bien_thay_cd = tk.BooleanVar(value=bool(self.cfg.get("co_dinh_thay_claude", True)))
-        self._o_chon(t, "Vùng cố định (túi đồ, tài liệu): đổi sang bản Claude khi có", self.bien_thay_cd,
+        self._o_chon(o, "Vùng cố định (túi đồ, tài liệu): đổi sang bản Claude khi có", self.bien_thay_cd,
                      self._doi_thay_cd).pack(anchor="w")
 
-        def cong_tru(cha, ten, tru, cong, rong_ten=12):
-            h = self._hang(cha, 2)
-            self._nhan(h, ten, UI_PHU, self._f(9), width=rong_ten, anchor="w").pack(side="left")
+        # ---------- Chi phi
+        t = muc("tien", "$", "Chi phí Claude")
+        o = the(t, "Giới hạn tiền mỗi ngày", "Tới mức này Claude tự tắt tới ngày mai (vẫn dịch offline / Google).")
+        h = self._hang(o, P(8))
+        khung, self.nut_gioi_han = self._cap(h, [(0, "Không giới hạn"), (0.05, "$0.05"), (0.1, "$0.10"),
+                                                 (0.2, "$0.20")], lambda g: self.lenh(f"gioi_han:{g}"))
+        khung.pack(side="left")
+        o = the(t, "Đã dùng")
+        self.lbl_tien = self._nhan(o, mau=UI_CHU, font=self._f(11))
+        self.lbl_tien.pack(anchor="w", pady=(P(4), 0))
+
+        # ---------- Giong doc
+        t = muc("giong", "♪", "Giọng đọc")
+        o = the(t, "Đọc bản dịch hội thoại", "Giọng Microsoft tiếng Việt đọc to bản dịch phụ đề.")
+        self.nut_giong = self._nut(o, "", "giong_bat_tat")
+        self.nut_giong.pack(anchor="w", pady=(P(6), P(6)))
+
+        def cong_tru(cha, ten, tru, cong):
+            h = self._hang(cha, P(4))
+            self._nhan(h, ten, UI_CHU, self._f(10), width=18, anchor="w").pack(side="left")
             self._nut(h, "−", cmd=lambda: self.lenh(tru), nho=True, rong=2).pack(side="left")
-            gt = self._nhan(h, "", UI_CHU, self._f(10, "bold"), width=6)
+            gt = self._nhan(h, "", UI_CHU, self._f(11, "bold"), width=6)
             gt.pack(side="left")
             self._nut(h, "+", cmd=lambda: self.lenh(cong), nho=True, rong=2).pack(side="left")
             return gt
-
-        t = self._the(trai, "Giọng đọc (đọc bản dịch)")
-        self.nut_giong = self._nut(t, "", "giong_bat_tat")
-        self.nut_giong.pack(fill="x", pady=2)
-        h = self._hang(t)
-        self._nhan(h, "Giọng:", UI_PHU, self._f(9), width=12, anchor="w").pack(side="left")
+        h = self._hang(o, P(4))
+        self._nhan(h, "Giọng:", UI_CHU, self._f(10), width=18, anchor="w").pack(side="left")
         khung, self.nut_chon_giong = self._cap(h, list(GIONG.items()), lambda g: self.lenh("giong:" + g))
         khung.pack(side="left")
-        self.lbl_toc_giong = cong_tru(t, "Tốc độ đọc:", "toc_giong_giam", "toc_giong_tang")
-        self.lbl_am_giong = cong_tru(t, "Âm lượng giọng:", "am_giong_giam", "am_giong_tang")
-        self.bien_toc_tu_dong = tk.BooleanVar(value=bool(self.cfg.get("toc_tu_dong", True)))
-        self._o_chon(t, "Câu dài thì tự đọc nhanh hơn (theo kịp game)", self.bien_toc_tu_dong,
-                     self._doi_toc_tu_dong).pack(anchor="w")
-        h = self._hang(t)
-        self._nhan(h, "Tiếng game khi đọc:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 6))
+        self.lbl_toc_giong = cong_tru(o, "Tốc độ đọc:", "toc_giong_giam", "toc_giong_tang")
+        self.lbl_am_giong = cong_tru(o, "Âm lượng giọng:", "am_giong_giam", "am_giong_tang")
+        h = self._hang(o, P(4))
+        self._nhan(h, "Tiếng game khi đọc:", UI_CHU, self._f(10), width=18, anchor="w").pack(side="left")
         khung, self.nut_giam_game = self._cap(h, [(1.0, "Giữ nguyên"), (0.5, "50%"), (0.25, "25%"), (0.0, "Tắt")],
                                               lambda g: self.lenh(f"giam_game:{g}"))
         khung.pack(side="left")
+        self.bien_toc_tu_dong = tk.BooleanVar(value=bool(self.cfg.get("toc_tu_dong", True)))
+        self._o_chon(o, "Câu dài thì tự đọc nhanh hơn (theo kịp game)", self.bien_toc_tu_dong,
+                     self._doi_toc_tu_dong).pack(anchor="w", pady=(P(4), 0))
 
-        t = self._the(trai, "App đang nhìn thấy gì")
-        self.nut_xem = self._nut(t, "", "xem_vung")
-        self.nut_xem.pack(fill="x", pady=(0, 4))
-        self.khung_xem = tk.Frame(t, bg=UI_THE)
-        self.khung_xem.pack(fill="x")
+        # ---------- Phim tat
+        t = muc("phim", "⌨", "Phím tắt")
+        o = the(t, "Bấm vào phím để đổi", "Bấm nút phím bên phải rồi nhấn tổ hợp phím mới (VD Ctrl + F8). "
+                                          "Esc để hủy.")
+        self.nut_phim = {}
+        for lenh, phim in self.cfg["phim_tat"].items():
+            h = self._hang(o, P(3))
+            self._nhan(h, self.TEN_PHIM.get(lenh, lenh), UI_CHU, self._f(10), anchor="w").pack(side="left")
+            b = self._nut(h, phim.upper(), nho=True, cmd=lambda l=lenh: self._doi_phim(l), rong=12)
+            b.pack(side="right")
+            self.nut_phim[lenh] = b
+        h = self._hang(o, (P(10), 0))
+        self._nut(h, "Trả phím mặc định", kieu="nguy_hiem", nho=True, cmd=self._phim_mac_dinh).pack(side="left")
 
-        t = self._the(trai, "Hệ thống")
-        h = self._hang(t)
-        self._nhan(h, "Cỡ giao diện:", UI_PHU, self._f(9)).pack(side="left", padx=(0, 6))
-        khung, self.nut_co_gd = self._cap(h, [(0.7, "70%"), (0.85, "85%"), (1.0, "100%")],
+        # ---------- Hien thi
+        t = muc("hien_thi", "▣", "Hiển thị")
+        o = the(t, "Cỡ chữ của app", "Đổi xong app vẽ lại ngay.")
+        h = self._hang(o, P(8))
+        khung, self.nut_co_gd = self._cap(h, [(1.0, "Vừa"), (1.15, "To"), (1.3, "Rất to")],
                                           lambda g: self.lenh(f"co_gd:{g}"))
         khung.pack(side="left")
-        h = self._hang(t)
-        self.nut_cach_chup = self._nut(h, "", "doi_cach_chup", nho=True)
-        self.nut_cach_chup.pack(side="left", padx=(0, 4))
-        self._nut(h, "Thư mục dữ liệu", cmd=lambda: os.startfile(DU_LIEU), nho=True).pack(side="left")
-        h = self._hang(t)
+        o = the(t, "Cửa sổ app")
+        h = self._hang(o, P(8))
         self._nut(h, "Cỡ cửa sổ mặc định", cmd=self._vua_noi_dung, nho=True).pack(side="left")
-        h = self._hang(t)
-        self.nut_cap_nhat = self._nut(h, "Kiểm tra cập nhật", cmd=self._kiem_tra_cap_nhat, nho=True)
-        self.nut_cap_nhat.pack(side="left", padx=(0, 4))
-        self._nut(h, "Thoát app", kieu="chinh", cmd=self.thoat, nho=True).pack(side="right")
+        o = the(t, "Cách chụp màn hình", "Tự động là tốt nhất. Đổi xong phải tắt app rồi mở lại.")
+        h = self._hang(o, P(8))
+        self.nut_cach_chup = self._nut(h, "", "doi_cach_chup", nho=True)
+        self.nut_cach_chup.pack(side="left")
+        o = the(t, "App đang nhìn thấy gì", "Xem ảnh chụp từng vùng mỗi giây – dùng khi app đọc sai chữ.")
+        self.nut_xem = self._nut(o, "", "xem_vung", nho=True)
+        self.nut_xem.pack(anchor="w", pady=(P(6), P(4)))
+        self.khung_xem = tk.Frame(o, bg=UI_THE)
+        self.khung_xem.pack(fill="x")
 
-    def _mo_cai_dat(self):
+        # ---------- He thong
+        t = muc("he_thong", "ℹ", "Hệ thống")
+        o = the(t, "Phiên bản", f"Bạn đang dùng Dịch Game v{APP_VERSION}.")
+        h = self._hang(o, P(8))
+        self.nut_cap_nhat = self._nut(h, "Kiểm tra cập nhật", cmd=self._kiem_tra_cap_nhat, nho=True,
+                                      bieu_tuong="⟳")
+        self.nut_cap_nhat.pack(side="left")
+        o = the(t, "Dữ liệu", "Cài đặt, mã API, bản dịch đã lưu nằm ở %APPDATA%\\DichGame – cập nhật app không mất.")
+        h = self._hang(o, P(8))
+        self._nut(h, "Mở thư mục dữ liệu", cmd=lambda: os.startfile(DU_LIEU), nho=True).pack(side="left")
+        o = the(t, "Thoát")
+        h = self._hang(o, P(8))
+        self._nut(h, "Thoát app", kieu="nguy_hiem", cmd=self.thoat, nho=True).pack(side="left")
+
+        self._chon_trang_cai_dat(getattr(self, "cs_trang_mo", "may"))
+
+    def _chon_trang_cai_dat(self, ma):
+        self.cs_trang_mo = ma
+        for m, trang in self.cs_trang.items():
+            if m == ma:
+                trang.pack(fill="both", expand=True)
+            else:
+                trang.pack_forget()
+        for m, (f, vach, l) in self.cs_muc.items():
+            chon = m == ma
+            nen = UI_THE if chon else UI_CANH
+            f.config(bg=nen)
+            l.config(bg=nen, fg="#ffffff" if chon else UI_PHU)
+            vach.config(bg=UI_DO if chon else nen)
         try:
+            for cv in self._cac_cuon:
+                if cv.master.master is self.cs or cv.winfo_toplevel() is self.cs:
+                    cv.yview_moveto(0)
+        except Exception:
+            pass
+
+    def _mo_cai_dat(self, trang=None):
+        try:
+            if trang:
+                self._chon_trang_cai_dat(trang)
             self.cs.deiconify()
             self.cs.lift()
             self.cs.focus_force()
         except Exception:
             self._tao_cua_so_cai_dat()
             self._ve_ds_vung()
+            if trang:
+                self._chon_trang_cai_dat(trang)
             self.cs.deiconify()
+
+    def _doi_phim(self, lenh):
+        P = self._p
+        w = tk.Toplevel(self.cs)
+        w.title("Đổi phím tắt")
+        w.configure(bg=UI_NEN, padx=P(24), pady=P(20))
+        w.attributes("-topmost", True)
+        w.transient(self.cs)
+        tk.Label(w, text=self.TEN_PHIM.get(lenh, lenh), bg=UI_NEN, fg=UI_CHU, font=self._f(13, "bold")).pack()
+        lbl = tk.Label(w, text="Nhấn tổ hợp phím mới…", bg=UI_NEN, fg=UI_VANG, font=self._f(12))
+        lbl.pack(pady=(P(10), P(4)))
+        tk.Label(w, text="Esc để hủy", bg=UI_NEN, fg=UI_PHU, font=self._f(9)).pack()
+        doi_ten = {"prior": "page up", "next": "page down", "return": "enter", "escape": "esc",
+                   "backspace": "backspace", "space": "space", "tab": "tab", "insert": "insert",
+                   "delete": "delete", "home": "home", "end": "end", "up": "up", "down": "down",
+                   "left": "left", "right": "right"}
+
+        def nhan(e):
+            ks = (e.keysym or "").lower()
+            if ks in ("control_l", "control_r", "shift_l", "shift_r", "alt_l", "alt_r", "win_l", "win_r"):
+                return
+            if ks == "escape" and not (e.state & 0x4):
+                w.destroy()
+                return
+            if re.fullmatch(r"f\d{1,2}|[a-z0-9]", ks):
+                ten = ks
+            elif ks in doi_ten:
+                ten = doi_ten[ks]
+            else:
+                lbl.config(text=f"Phím \"{e.keysym}\" không dùng được – thử phím khác")
+                return
+            phan = []
+            if e.state & 0x4:
+                phan.append("ctrl")
+            if e.state & 0x20000 or e.state & 0x8:
+                phan.append("alt")
+            if e.state & 0x1:
+                phan.append("shift")
+            if not phan and not ten.startswith("f"):
+                lbl.config(text="Phím chữ / số phải kèm Ctrl, Alt hoặc Shift")
+                return
+            moi = "+".join(phan + [ten])
+            khac = next((l for l, ph in self.cfg["phim_tat"].items() if ph == moi and l != lenh), None)
+            if khac:
+                lbl.config(text=f"{moi.upper()} đang dùng cho \"{self.TEN_PHIM.get(khac, khac)}\"")
+                return
+            self.cfg["phim_tat"][lenh] = moi
+            w.destroy()
+            self._ap_dung_phim()
+
+        w.bind("<KeyPress>", nhan)
+        w.after(50, w.focus_force)
+        w.grab_set()
+
+    def _phim_mac_dinh(self):
+        if not messagebox.askyesno("Phím tắt", "Trả tất cả phím tắt về mặc định?", parent=self.cs):
+            return
+        self.cfg["phim_tat"] = dict(CAU_HINH_MAC_DINH["phim_tat"])
+        self._ap_dung_phim()
+
+    def _ap_dung_phim(self):
+        self._luu_cau_hinh()
+        for ham in ("unhook_all_hotkeys", "clear_all_hotkeys", "remove_all_hotkeys"):
+            try:
+                getattr(keyboard, ham)()
+                break
+            except Exception:
+                continue
+        self._dang_ky_phim()
+        self._bao("Đã đổi phím tắt ✓")
+        self.root.after(10, lambda: (self._ve_lai_giao_dien(), self._mo_cai_dat("phim")))
 
     def _mo_phim_tat(self):
         ten = {"chon_hoi_thoai": "Chọn lại vùng 1 (hội thoại)", "chon_nhiem_vu": "Chọn lại vùng 2 (nhiệm vụ)",
@@ -2507,7 +2702,7 @@ class App:
         def tron(mau, a):
             m = [int(mau[i:i + 2], 16) for i in (1, 3, 5)]
             return "#%02x%02x%02x" % tuple(round(m[i] * a + canh[i] * (1 - a)) for i in range(3))
-        font = ("Segoe UI", max(8, round(co * 0.8)), "bold")
+        font = (gd.FONT, max(8, round(co * 0.8)), "bold")
         chu = "Chuyện gì vậy?"
         if not phu_de:
             t = cv.create_text(w // 2, h // 2, text=chu, font=font)
@@ -2680,11 +2875,11 @@ class App:
         self.nut_toan_man_mini.config(text=f"Cả màn hình ({p['dich_man_hinh'].upper()})")
         self._dat_mau_nut(self.nut_toan_man_mini, self.toan_man_bat or self.mot_lan_hien)
         self.nut_thu_gon.config(text="▼ Mở rộng" if c.get("thu_gon") else "▲ Thu gọn")
-        gd = bool(c.get("giong_doc"))
-        self.nut_giong.config(text=f"Giọng đọc: {'BẬT' if gd else 'TẮT'}  ({p['bat_tat_giong'].upper()})")
-        self._dat_mau_nut(self.nut_giong, gd)
-        self.nut_giong_mini.config(text=f"Giọng: {'BẬT' if gd else 'TẮT'}")
-        self._dat_mau_nut(self.nut_giong_mini, gd)
+        giong_bat = bool(c.get("giong_doc"))
+        self.nut_giong.config(text=f"Giọng đọc: {'BẬT' if giong_bat else 'TẮT'}  ({p['bat_tat_giong'].upper()})")
+        self._dat_mau_nut(self.nut_giong, giong_bat)
+        self.nut_giong_mini.config(text=f"Giọng: {'BẬT' if giong_bat else 'TẮT'}")
+        self._dat_mau_nut(self.nut_giong_mini, giong_bat)
         for g, b in self.nut_chon_giong.items():
             self._dat_mau_nut(b, c.get("giong") == g)
         self.lbl_toc_giong.config(text=f"{int(c.get('toc_do_giong', 25)):+d}%")
@@ -2711,10 +2906,11 @@ class App:
                  "thieu_thu_vien": ("Thiếu thư viện ctranslate2 / sentencepiece – hãy cập nhật lên bản exe mới.",
                                     UI_LOI)}.get(o.trang_thai, ("", UI_PHU))
         self.lbl_offline.config(text=chu_o[0], fg=chu_o[1])
+        self.lbl_offline_cd.config(text=chu_o[0], fg=chu_o[1])
         self.nut_tai_mo_hinh.config(state="disabled" if o.trang_thai in ("dang_tai", "dang_nap", "san_sang")
                                     else "normal")
         for g, b in self.nut_co_gd.items():
-            self._dat_mau_nut(b, abs(g - float(c.get("co_giao_dien", 0.85))) < 0.01)
+            self._dat_mau_nut(b, abs(g - float(c.get("co_giao_dien", 1.15))) < 0.01)
         khoa = self.bo_dich.khoa_api
         if khoa and self.bo_dich.khoa_hong:
             self.lbl_khoa.config(text=f"Mã API (…{khoa[-4:]}) bị từ chối – dán mã mới", fg=UI_LOI)
@@ -2802,6 +2998,15 @@ class App:
             self.nut_cap_nhat_dau.config(text=f"Cập nhật v{self.ban_moi['phien_ban']}")
             if not self.nut_cap_nhat_dau.winfo_ismapped():
                 self.nut_cap_nhat_dau.pack(side="right", padx=(0, self._p(6)))
+            self.lbl_cap_nhat.config(text=f"Có bản mới v{self.ban_moi['phien_ban']} – bạn đang dùng v{APP_VERSION}")
+            dong = [x.strip(" -•#") for x in (self.ban_moi.get("ghi_chu") or "").splitlines()
+                    if x.strip(" -•#") and not x.lstrip().startswith("##")]
+            self.lbl_cap_nhat_phu.config(text=(dong[0][:150] if dong else "Bấm \"Cập nhật ngay\" – app tự tải, tự tắt và mở lại."))
+            if not self.thanh_cap_nhat.winfo_ismapped():
+                self.thanh_cap_nhat.pack(fill="x", before=self.khung_tt)
+            self.lbl_phien_ban.config(text=f"v{APP_VERSION} • có bản mới", fg=gd.CAM)
+        elif getattr(self, "la_moi_nhat", False):
+            self.lbl_phien_ban.config(text=f"v{APP_VERSION} • Mới nhất ✓", fg=UI_XANH)
         DEEPL["bat"] = c.get("che_do_hoi_thoai") == "deepl"
         if DEEPL["khoa"]:
             self.lbl_khoa_deepl.config(text=f"Mã DeepL đã lưu (…{DEEPL['khoa'][-4:]}) ✓", fg=UI_XANH)
@@ -3000,13 +3205,45 @@ class App:
                 tt = lay_thong_tin_ban_moi(self.cfg)
                 if so_phien_ban(tt.get("phien_ban")) > so_phien_ban(APP_VERSION):
                     self.q.put(("ban_moi", tt, im_lang))
-                elif not im_lang:
-                    self.q.put(("trang_thai", f"Đang chạy • Bạn đang dùng bản mới nhất (v{APP_VERSION})"))
+                else:
+                    self.la_moi_nhat = True
+                    self.q.put(("offline", None))
+                    if not im_lang:
+                        self.q.put(("trang_thai", f"Đang chạy • Bạn đang dùng bản mới nhất (v{APP_VERSION})"))
             except Exception as e:
                 if not im_lang:
                     self.q.put(("trang_thai", f"Không kiểm tra được cập nhật: {e}"))
 
         threading.Thread(target=chay, daemon=True).start()
+
+    def _cap_nhat_ngay(self):
+        tt = self.ban_moi
+        if not tt:
+            self._kiem_tra_cap_nhat()
+            return
+        if getattr(self, "_dang_cap_nhat", False):
+            return
+        self._dang_cap_nhat = True
+        self._bao(f"Đang tải bản mới v{tt['phien_ban']}... app sẽ tự tắt và mở lại.", "canh_bao")
+        try:
+            self.lbl_cap_nhat.config(text=f"Đang tải bản mới v{tt['phien_ban']}... đừng tắt app")
+        except Exception:
+            pass
+
+        def chay():
+            try:
+                if ap_dung_cap_nhat(tt, lambda chu: self.q.put(("trang_thai_phu", chu))):
+                    self.q.put(("thoat_cap_nhat",))
+            except Exception as e:
+                self._dang_cap_nhat = False
+                self.q.put(("trang_thai", f"Cập nhật lỗi: {e}"))
+
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _xem_ghi_chu_moi(self):
+        tt = self.ban_moi or {}
+        messagebox.showinfo(f"Có gì mới trong v{tt.get('phien_ban', '?')}",
+                            (tt.get("ghi_chu") or "Không có ghi chú.").strip()[:2500], parent=self.root)
 
     def _hoi_cap_nhat(self, tt):
         ghi_chu = (tt.get("ghi_chu") or "").strip()[:800]
@@ -3790,10 +4027,8 @@ class App:
                 elif loai == "ban_moi":
                     self.ban_moi = tin[1]
                     self._cap_nhat_nut()
-                    self._bao(f"Có bản mới v{tin[1]['phien_ban']} – bấm nút cập nhật (mục Hệ thống).",
+                    self._bao(f"Có bản mới v{tin[1]['phien_ban']} – bấm \"Cập nhật ngay\" ở thanh màu cam phía trên.",
                               "canh_bao")
-                    if not tin[2]:
-                        self._hoi_cap_nhat(tin[1])
                 elif loai == "thoat_cap_nhat":
                     self.thoat()
                     return

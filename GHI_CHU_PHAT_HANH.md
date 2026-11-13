@@ -1,3 +1,13 @@
+## Dịch Game v6.8.0 – giao diện dễ nhìn hơn
+
+- Font mới Be Vietnam Pro (đóng gói sẵn, không cần cài), chữ to hơn; Cài đặt → Hiển thị chọn Vừa / To / Rất to
+- Nút bo góc, to, có biểu tượng; màu theo ý nghĩa: đỏ = hành động chính, xám = phụ, viền đỏ = gỡ / xóa
+- Có bản mới: thanh màu cam ngay trên cùng với nút "Cập nhật ngay" và "Xem có gì mới"
+- Cài đặt làm lại: menu bên trái (Máy dịch & mã API, Chi phí, Giọng đọc, Phím tắt, Hiển thị, Hệ thống)
+- Ô mã API có nút hiện / ẩn mã
+- Đổi phím tắt ngay trong app: bấm vào phím rồi nhấn tổ hợp phím mới
+- Chữ bản dịch hiện trên game cũng dùng font mới
+
 ## Dịch Game v6.7.0
 
 - Mới: Việt hóa Rise of the Tomb Raider – chọn game trong Thư viện → nút "Việt hóa Rise of the Tomb Raider"
