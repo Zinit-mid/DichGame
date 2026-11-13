@@ -1,3 +1,9 @@
+## Dịch Game v6.8.1
+
+- Mới: Crimson Desert → nút "Mod tăng ô chứa đồ 1440" – tự đọc bảng túi đồ của bản game đang cài và tạo gói DMM:
+  - TangO_1440_AnToan.json: túi đồ 732 ô, kho riêng / tủ quần áo / tủ lạnh Kuku / sưu tầm / hái lượm / biểu tượng 1440 ô
+  - TangO_1440_TatCa.json: tất cả 1440 ô, kể cả túi đồ (vượt mức an toàn)
+
 ## Dịch Game v6.8.0 – giao diện dễ nhìn hơn
 
 - Font mới Be Vietnam Pro (đóng gói sẵn, không cần cài), chữ to hơn; Cài đặt → Hiển thị chọn Vừa / To / Rất to

@@ -1064,6 +1064,7 @@ class App:
                   nho=True).pack(side="left")
         self._nut(hang3, "Đóng gói lại giọng Việt cho DMM", lambda: self._cd_dong_giong(g),
                   nho=True).pack(side="left", padx=6)
+        self._nut(hang3, "Mod tăng ô chứa đồ 1440", lambda: self._cd_mod_tui_do(g), nho=True).pack(side="left")
         hang5 = tk.Frame(w, bg=UI_NEN)
         hang5.pack(fill="x", pady=(8, 4))
         tk.Label(hang5, text="Âm lượng giọng Việt:", bg=UI_NEN, fg=UI_CHU,
@@ -1212,6 +1213,31 @@ class App:
             except Exception as e:
                 self.q.put(("goi", lambda e=e: self.cd_tien_do.config(text=f"Lỗi xuất gói: {e}", fg=UI_LOI)))
         threading.Thread(target=xuat, daemon=True).start()
+
+    def _cd_mod_tui_do(self, g):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        ra = os.path.join(thu_muc_desktop(), "Mod_TangO_CrimsonDesert")
+        viec = self.cd_viec
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            try:
+                kq = viec.tao_mod_tui_do(ra, bao)
+                chu = ("Đã tạo mod ở Desktop\\Mod_TangO_CrimsonDesert:\n"
+                       "• TangO_1440_AnToan.json – túi đồ 732, kho/tủ 1440 (nên dùng)\n"
+                       "• TangO_1440_TatCa.json – cả túi đồ 1440 (rủi ro, sao lưu save trước)\n"
+                       "Tắt game → DMM: Import 1 file, bật, Mount Mods.\n" + "\n".join(kq["bao_cao"]))
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+                try:
+                    subprocess.Popen(["explorer", ra])
+                except Exception:
+                    pass
+            except Exception as e:
+                bao(f"Lỗi tạo mod: {e}")
+        threading.Thread(target=chay, daemon=True).start()
 
     def _cd_trich_giong(self, g):
         if self.cd_viec is None or self.cd_dang_chay:

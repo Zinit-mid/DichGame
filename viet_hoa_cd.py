@@ -1252,6 +1252,70 @@ class ViecDich:
         os.replace(duong_dan_zip + ".tam", duong_dan_zip)
         return {"cau": so, "giong": len(viec), "thieu_mau": thieu_mau, "tong_game": sum(len(v) for v in nhom.values())}
 
+    # ---------------------------------------------------------- mod tang o chua do
+    # vi tri goc trong inventory.staticinfobody ban 2.03.01 (theo mod DesertLink Inventory Expansion)
+    O_CHUA_203 = [("Túi đồ (balo)", 9727, 50, 240, "tui"), ("Kho riêng", 10793, 240, 1000, "kho"),
+                  ("Nồi Kuku", 12395, 240, 240, "tui"), ("Tủ quần áo", 12724, 10, 1000, "kho"),
+                  ("Tủ lạnh Kuku", 12943, 10, 1000, "kho"), ("Biểu tượng", 13145, 10, 1000, "kho"),
+                  ("Đồ sưu tầm", 13358, 10, 1000, "kho"), ("Đồ hái lượm", 25090, 10, 1000, "kho")]
+
+    def tao_mod_tui_do(self, thu_ra, bao=lambda s: None):
+        """Doc inventory.staticinfobody cua ban game hien tai, tim cac o (mac dinh, toi da) roi tao goi DMM:
+        TangO_1440_AnToan.json (balo 732, kho 1440) va TangO_1440_TatCa.json (ca balo 1440)."""
+        import struct
+        nhom = os.path.join(self.thu_muc_game, "0008")
+        f = next((x for x in cd.doc_pamt_day_du(os.path.join(nhom, "0.pamt"))
+                  if x["ten"] == "inventory" and x["duoi"] == ".staticinfobody"), None)
+        if not f:
+            raise LoiDung("không thấy file inventory.staticinfobody trong nhóm 0008")
+        bao("Đang đọc bảng túi đồ của game...")
+        b = cd.doc_tep(nhom, f)
+        os.makedirs(thu_ra, exist_ok=True)
+        with open(os.path.join(thu_ra, "inventory.staticinfobody"), "wb") as fh:
+            fh.write(b)
+        moc = b.find(bytes.fromhex("2881023C00020000000A000000"))
+        lech = (moc + 28 - 9727) if moc >= 0 and b[moc + 28:moc + 32] == struct.pack("<HH", 50, 240) else None
+        da_dung, kq, bao_cao = set(), [], []
+        for ten, cu, mac_dinh, toi_da, loai in self.O_CHUA_203:
+            mau = struct.pack("<HH", mac_dinh, toi_da)
+            du_kien = cu + (lech or 0)
+            if b[du_kien:du_kien + 4] == mau and du_kien not in da_dung:
+                vt = du_kien
+            else:
+                ds = [m.start() for m in re.finditer(re.escape(mau), b) if m.start() not in da_dung]
+                vt = min(ds, key=lambda x: abs(x - du_kien)) if ds else None
+                if vt is not None and abs(vt - du_kien) > 4000:
+                    vt = None
+            if vt is None:
+                bao_cao.append(f"✗ {ten}: không tìm thấy (game đổi cấu trúc)")
+                continue
+            da_dung.add(vt)
+            kq.append((ten, vt, mac_dinh, toi_da, loai))
+            bao_cao.append(f"✓ {ten}: {mac_dinh}/{toi_da} ô tại vị trí {vt}")
+        if not kq:
+            raise LoiDung("không tìm thấy ô chứa đồ nào – " + "; ".join(bao_cao))
+
+        def goi(tui_max, ten_tep, mo_ta):
+            doi = []
+            for ten, vt, mac_dinh, toi_da, loai in kq:
+                moi = tui_max if loai == "tui" else 1440
+                doi.append({"offset": vt, "label": f"{ten} {mac_dinh}->{moi}",
+                            "original": struct.pack("<H", mac_dinh).hex().upper(),
+                            "patched": struct.pack("<H", moi).hex().upper()})
+                doi.append({"offset": vt + 2, "label": f"{ten} max {toi_da}->{moi}",
+                            "original": struct.pack("<H", toi_da).hex().upper(),
+                            "patched": struct.pack("<H", moi).hex().upper()})
+            du_lieu = {"name": f"Tăng ô chứa đồ – {mo_ta}", "version": "Dịch Game", "author": "Dịch Game",
+                       "description": mo_ta, "dmm_v3upgrade_disable": "true",
+                       "patches": [{"game_file": "gamedata/inventory.staticinfobody", "changes": doi}]}
+            p = os.path.join(thu_ra, ten_tep)
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(du_lieu, fh, ensure_ascii=False, indent=2)
+            return p
+        a = goi(732, "TangO_1440_AnToan.json", "túi đồ 732 ô (mức an toàn), kho / tủ / sưu tầm 1440 ô")
+        t = goi(1440, "TangO_1440_TatCa.json", "TẤT CẢ 1440 ô, kể cả túi đồ (vượt mức an toàn – sao lưu save trước)")
+        return {"bao_cao": bao_cao, "an_toan": a, "tat_ca": t, "khop_203": lech is not None}
+
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
         tam = os.path.join(THU_MUC_CD, "goi_tam")
