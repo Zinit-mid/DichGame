@@ -260,6 +260,30 @@ def tim_tat_ca(game_tay):
     return sorted(gon, key=lambda g: g["ten"].lower())
 
 
+def thu_muc_desktop():
+    """Desktop that nguoi dung dang thay (ke ca khi OneDrive chuyen Desktop sang OneDrive\\Desktop)."""
+    try:
+        import ctypes.wintypes as wt
+
+        class GUID(ctypes.Structure):
+            _fields_ = [("a", ctypes.c_uint32), ("b", ctypes.c_uint16), ("c", ctypes.c_uint16),
+                        ("d", ctypes.c_ubyte * 8)]
+        g = GUID(0xB4BFCC3A, 0xDB2C, 0x424C, (ctypes.c_ubyte * 8)(0xB0, 0x29, 0x7F, 0xE9, 0x9A, 0x87, 0xC6, 0x41))
+        p = wt.LPWSTR()
+        if ctypes.windll.shell32.SHGetKnownFolderPath(ctypes.byref(g), 0, None, ctypes.byref(p)) == 0:
+            kq = p.value
+            ctypes.windll.ole32.CoTaskMemFree(p)
+            if kq and os.path.isdir(kq):
+                return kq
+    except Exception:
+        pass
+    for p in (os.path.join(os.environ.get("OneDrive") or "", "Desktop"),
+              os.path.join(os.environ.get("USERPROFILE") or "", "Desktop")):
+        if os.path.isdir(p) and os.environ.get("OneDrive" if "OneDrive" in p else "USERPROFILE"):
+            return p
+    return os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop")
+
+
 def la_crimson(g):
     return (g["nguon"] == "steam" and str(g["ma"]) == "3321460") or os.path.isfile(
         os.path.join(g["thu_muc"], "bin64", "CrimsonDesert.exe"))
@@ -1036,7 +1060,7 @@ class App:
         if self.cd_dang_chay:
             self.cd_tien_do.config(text="Đợi dịch xong hoặc bấm Tạm dừng trước khi xuất gói.", fg=UI_VANG)
             return
-        p = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "VietHoa_CrimsonDesert.zip")
+        p = os.path.join(thu_muc_desktop(), "VietHoa_CrimsonDesert.zip")
         viec = self.cd_viec
 
         def xuat():
@@ -1058,7 +1082,7 @@ class App:
     def _cd_trich_giong(self, g):
         if self.cd_viec is None or self.cd_dang_chay:
             return
-        ra = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff")
+        ra = os.path.join(thu_muc_desktop(), "LongTieng_Kliff")
         viec = self.cd_viec
         self.cd_dang_chay = True
 
@@ -1088,7 +1112,15 @@ class App:
         if self.cd_viec is None or self.cd_dang_chay:
             return
         import viet_hoa_cd as vcd
-        thu = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff")
+        thu = os.path.join(thu_muc_desktop(), "LongTieng_Kliff")
+        for khac in (os.path.join(os.environ.get("USERPROFILE") or "", "Desktop", "LongTieng_Kliff"),
+                     os.path.join(os.environ.get("OneDrive") or "", "Desktop", "LongTieng_Kliff")):
+            dv = os.path.join(thu, "wav_tieng_viet")
+            co_wav = os.path.isdir(dv) and any(x.lower().endswith(".wav") for x in os.listdir(dv))
+            dk = os.path.join(khac, "wav_tieng_viet")
+            if not co_wav and os.path.isdir(dk) and any(x.lower().endswith(".wav") for x in os.listdir(dk)):
+                thu = khac
+                break
         wwise = vcd.ViecDich.tim_wwise_console()
         if not wwise:
             p = self.filedialog.askopenfilename(title="Chọn WwiseConsole.exe (trong thư mục cài Wwise\\Authoring\\x64\\Release\\bin)",
@@ -1096,7 +1128,7 @@ class App:
             if not p:
                 return
             wwise = p
-        zip_ra = os.path.join(os.environ.get("USERPROFILE") or DU_LIEU, "Desktop", "LongTieng_Kliff_DMM.zip")
+        zip_ra = os.path.join(thu_muc_desktop(), "LongTieng_Kliff_DMM.zip")
         viec = self.cd_viec
         self.cd_dang_chay = True
 

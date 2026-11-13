@@ -1,8 +1,4 @@
-## Dịch Game v6.3.2
+## Dịch Game v6.3.3
 
-**Lồng tiếng Kliff – bước thử nghiệm 2**
-- Nút **"Đóng gói giọng Việt cho DMM (thử)"** trong cửa sổ Việt hóa Crimson Desert
-- Lấy các file WAV trong Desktop\LongTieng_Kliff\wav_tieng_viet (đặt tên giống file giọng gốc)
-- Tự chuyển về 48 kHz mono, gọi Wwise mã hóa sang Wwise Vorbis giống giọng gốc của game
-- Xuất Desktop\LongTieng_Kliff_DMM.zip để nhập vào DMM
-- Tự tìm Wwise đã cài; không tìm thấy thì hỏi chọn WwiseConsole.exe
+- Sửa: máy có Desktop nằm trong OneDrive – các file xuất ra (gói Việt hóa, LongTieng_Kliff, gói giọng) giờ nằm đúng Desktop bạn đang thấy
+- Đóng gói giọng: tự tìm WAV ở cả Desktop cũ lẫn Desktop OneDrive
