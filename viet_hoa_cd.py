@@ -941,7 +941,7 @@ class ViecDich:
         kb = os.path.join(tam, "tao_giong.py")
         with open(kb, "w", encoding="utf-8") as f:
             f.write(KICH_BAN_VIENEU)
-        env = dict(os.environ, HF_HOME=hf,
+        env = dict(os.environ, HF_HOME=hf, HF_HUB_DISABLE_SYMLINKS_WARNING="1",
                    PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         env.pop("PYTHONPATH", None)
         env.pop("PYTHONHOME", None)
@@ -1020,14 +1020,28 @@ can.sort(key=lambda d: len(d[1]))
 print("TONG", len(viec["ds"]), len(can), flush=True)
 nk = open(viec["nhat"], "a", encoding="utf-8")
 
+def keo_gian(w, rate):
+    # doc nhanh hon, giu nguyen cao do; them dem 0.25 s 2 dau de cau ngan khong loi
+    dem = np.zeros(int(0.25 * SR), np.float32)
+    y = librosa.effects.time_stretch(np.concatenate([dem, w, dem]), rate=rate)
+    d = int(len(dem) / rate)
+    return y[d:len(y) - d] if len(y) > 2 * d else y
+
 def xu_ly(w, goc):
-    w = np.asarray(w, dtype=np.float32).reshape(-1)
+    w = np.nan_to_num(np.asarray(w, dtype=np.float32).reshape(-1))
     if librosa is not None and len(w) > SR // 10:
-        w, _ = librosa.effects.trim(w, top_db=38)
-    if goc > 0.3 and librosa is not None:
+        try:
+            w, _ = librosa.effects.trim(w, top_db=38)
+        except Exception:
+            pass
+    if goc > 0.3 and librosa is not None and len(w) > SR // 20:
         dai, muc = len(w) / SR, goc * 0.97
         if dai > muc:
-            w = librosa.effects.time_stretch(w, rate=min(dai / muc, viec.get("toi_da", 1.4)))
+            try:
+                w = keo_gian(w, min(dai / muc, viec.get("toi_da", 1.4)))
+            except Exception as e:
+                print("khong ep duoc thoi gian:", e, flush=True)
+    w = np.nan_to_num(w)
     r = float(np.sqrt(np.mean(w ** 2))) if len(w) else 0
     if r > 1e-4:
         w = w * (viec["rms"] / r)
@@ -1054,7 +1068,12 @@ for i in range(0, len(can), LO):
         if w is None or len(w) == 0:
             continue
         p = os.path.join(ra, d[0] + ".wav")
-        sf.write(p + ".tam", xu_ly(w, float(d[2] or 0)), SR, subtype="PCM_16", format="WAV")
+        try:
+            y = xu_ly(w, float(d[2] or 0))
+        except Exception as e:
+            print("LOI xu ly", d[0], e, flush=True)
+            y = np.nan_to_num(np.asarray(w, dtype=np.float32).reshape(-1))
+        sf.write(p + ".tam", y, SR, subtype="PCM_16", format="WAV")
         os.replace(p + ".tam", p)
         nk.write(d[0] + "\n")
         nk.flush()
