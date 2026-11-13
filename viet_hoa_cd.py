@@ -1253,16 +1253,60 @@ class ViecDich:
         return {"cau": so, "giong": len(viec), "thieu_mau": thieu_mau, "tong_game": sum(len(v) for v in nhom.values())}
 
     # ---------------------------------------------------------- mod tang o chua do
-    # vi tri goc trong inventory.staticinfobody ban 2.03.01 (theo mod DesertLink Inventory Expansion)
-    O_CHUA_203 = [("Túi đồ (balo)", 9727, 50, 240, "tui"), ("Kho riêng", 10793, 240, 1000, "kho"),
-                  ("Nồi Kuku", 12395, 240, 240, "tui"), ("Tủ quần áo", 12724, 10, 1000, "kho"),
-                  ("Tủ lạnh Kuku", 12943, 10, 1000, "kho"), ("Biểu tượng", 13145, 10, 1000, "kho"),
-                  ("Đồ sưu tầm", 13358, 10, 1000, "kho"), ("Đồ hái lượm", 25090, 10, 1000, "kho")]
+    # ten ban ghi trong inventory.staticinfobody (2.04+): [u32 do dai][ten][u32 ma][3 byte][u16 mac dinh]
+    # [4 byte][u16 toi da]. loai "tui" = toi da an toan 732 (theo DesertLink), "kho" = 1440
+    O_CHUA = [("Túi đồ (balo)", "Character", "tui"), ("Kho riêng ở trại", "CampWareHouse", "kho"),
+              ("Kho thành phố / nồi Kuku", "WareHouse", "tui"), ("Tủ quần áo", "Housing_Dresser", "kho"),
+              ("Tủ lạnh Kuku", "Housing_Refrigerator", "kho"), ("Biểu tượng", "Housing_Symbol", "kho"),
+              ("Đồ sưu tầm", "Housing_Collecting", "kho"), ("Đồ hái lượm", "Housing_GatheredMaterials", "kho")]
+    GAME_FILE_TUI_DO = "gamedata/inventory.staticinfobody"   # cach ghi mod DesertLink da chay duoc voi DMM
+
+    @classmethod
+    def tim_o_chua(cls, b):
+        """-> [(ten_viet, vt_mac_dinh, mac_dinh, vt_toi_da, toi_da, loai)], bao_cao"""
+        import struct
+        kq, bao_cao = [], []
+        for ten_viet, ten, loai in cls.O_CHUA:
+            ma = ten.encode("ascii")
+            vt = -1
+            for m in re.finditer(re.escape(ma), b):
+                s0 = m.start()
+                if s0 >= 4 and struct.unpack_from("<I", b, s0 - 4)[0] == len(ma):
+                    vt = s0
+                    break
+            if vt < 0:
+                bao_cao.append(f"✗ {ten_viet}: không thấy bản ghi {ten}")
+                continue
+            e = vt + len(ma)
+            vd, vm = e + 7, e + 13
+            if vm + 2 > len(b):
+                bao_cao.append(f"✗ {ten_viet}: bản ghi lạ")
+                continue
+            md, td = struct.unpack_from("<H", b, vd)[0], struct.unpack_from("<H", b, vm)[0]
+            if not (1 <= md <= td <= 5000):
+                bao_cao.append(f"✗ {ten_viet}: số ô lạ ({md}/{td}) – game đổi cấu trúc")
+                continue
+            kq.append((ten_viet, vd, md, vm, td, loai))
+            bao_cao.append(f"✓ {ten_viet}: {md} ô (tối đa {td})")
+        return kq, bao_cao
+
+    @classmethod
+    def json_mod_tui_do(cls, kq, tui_max, mo_ta):
+        import struct
+        doi = []
+        for ten_viet, vd, md, vm, td, loai in kq:
+            moi = tui_max if loai == "tui" else 1440
+            doi.append({"offset": vd, "label": f"{ten_viet} {md}->{moi}",
+                        "original": struct.pack("<H", md).hex().upper(), "patched": struct.pack("<H", moi).hex().upper()})
+            doi.append({"offset": vm, "label": f"{ten_viet} max {td}->{moi}",
+                        "original": struct.pack("<H", td).hex().upper(), "patched": struct.pack("<H", moi).hex().upper()})
+        return {"name": f"Tăng ô chứa đồ – {mo_ta}", "version": "CD2.05", "author": "Dịch Game",
+                "description": mo_ta, "dmm_v3upgrade_disable": "true",
+                "patches": [{"game_file": cls.GAME_FILE_TUI_DO, "changes": doi}]}
 
     def tao_mod_tui_do(self, thu_ra, bao=lambda s: None):
-        """Doc inventory.staticinfobody cua ban game hien tai, tim cac o (mac dinh, toi da) roi tao goi DMM:
-        TangO_1440_AnToan.json (balo 732, kho 1440) va TangO_1440_TatCa.json (ca balo 1440)."""
-        import struct
+        """Doc inventory.staticinfobody cua ban game dang cai, tim cac kho theo ten roi tao goi DMM:
+        TangO_1440_AnToan.json (balo / kho thanh pho 732, con lai 1440) va TangO_1440_TatCa.json (tat ca 1440)."""
         nhom = os.path.join(self.thu_muc_game, "0008")
         f = next((x for x in cd.doc_pamt_day_du(os.path.join(nhom, "0.pamt"))
                   if x["ten"] == "inventory" and x["duoi"] == ".staticinfobody"), None)
@@ -1273,48 +1317,17 @@ class ViecDich:
         os.makedirs(thu_ra, exist_ok=True)
         with open(os.path.join(thu_ra, "inventory.staticinfobody"), "wb") as fh:
             fh.write(b)
-        moc = b.find(bytes.fromhex("2881023C00020000000A000000"))
-        lech = (moc + 28 - 9727) if moc >= 0 and b[moc + 28:moc + 32] == struct.pack("<HH", 50, 240) else None
-        da_dung, kq, bao_cao = set(), [], []
-        for ten, cu, mac_dinh, toi_da, loai in self.O_CHUA_203:
-            mau = struct.pack("<HH", mac_dinh, toi_da)
-            du_kien = cu + (lech or 0)
-            if b[du_kien:du_kien + 4] == mau and du_kien not in da_dung:
-                vt = du_kien
-            else:
-                ds = [m.start() for m in re.finditer(re.escape(mau), b) if m.start() not in da_dung]
-                vt = min(ds, key=lambda x: abs(x - du_kien)) if ds else None
-                if vt is not None and abs(vt - du_kien) > 4000:
-                    vt = None
-            if vt is None:
-                bao_cao.append(f"✗ {ten}: không tìm thấy (game đổi cấu trúc)")
-                continue
-            da_dung.add(vt)
-            kq.append((ten, vt, mac_dinh, toi_da, loai))
-            bao_cao.append(f"✓ {ten}: {mac_dinh}/{toi_da} ô tại vị trí {vt}")
+        kq, bao_cao = self.tim_o_chua(b)
         if not kq:
             raise LoiDung("không tìm thấy ô chứa đồ nào – " + "; ".join(bao_cao))
-
-        def goi(tui_max, ten_tep, mo_ta):
-            doi = []
-            for ten, vt, mac_dinh, toi_da, loai in kq:
-                moi = tui_max if loai == "tui" else 1440
-                doi.append({"offset": vt, "label": f"{ten} {mac_dinh}->{moi}",
-                            "original": struct.pack("<H", mac_dinh).hex().upper(),
-                            "patched": struct.pack("<H", moi).hex().upper()})
-                doi.append({"offset": vt + 2, "label": f"{ten} max {toi_da}->{moi}",
-                            "original": struct.pack("<H", toi_da).hex().upper(),
-                            "patched": struct.pack("<H", moi).hex().upper()})
-            du_lieu = {"name": f"Tăng ô chứa đồ – {mo_ta}", "version": "Dịch Game", "author": "Dịch Game",
-                       "description": mo_ta, "dmm_v3upgrade_disable": "true",
-                       "patches": [{"game_file": "gamedata/inventory.staticinfobody", "changes": doi}]}
+        ds = {}
+        for tui, ten_tep, mo_ta in ((732, "TangO_1440_AnToan.json", "balo 732 ô (mức an toàn), kho / tủ / sưu tầm 1440 ô"),
+                                    (1440, "TangO_1440_TatCa.json", "TẤT CẢ 1440 ô kể cả balo (vượt mức an toàn)")):
             p = os.path.join(thu_ra, ten_tep)
             with open(p, "w", encoding="utf-8") as fh:
-                json.dump(du_lieu, fh, ensure_ascii=False, indent=2)
-            return p
-        a = goi(732, "TangO_1440_AnToan.json", "túi đồ 732 ô (mức an toàn), kho / tủ / sưu tầm 1440 ô")
-        t = goi(1440, "TangO_1440_TatCa.json", "TẤT CẢ 1440 ô, kể cả túi đồ (vượt mức an toàn – sao lưu save trước)")
-        return {"bao_cao": bao_cao, "an_toan": a, "tat_ca": t, "khop_203": lech is not None}
+                json.dump(self.json_mod_tui_do(kq, tui, mo_ta), fh, ensure_ascii=False, indent=2)
+            ds[tui] = p
+        return {"bao_cao": bao_cao, "an_toan": ds[732], "tat_ca": ds[1440]}
 
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):

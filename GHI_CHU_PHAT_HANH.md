@@ -1,3 +1,7 @@
+## Dịch Game v6.9.1
+
+- Sửa: "Mod tăng ô chứa đồ 1440" không tạo được mod với Crimson Desert 2.05 (game đổi cấu trúc bảng túi đồ) – giờ tìm từng kho theo tên (Character, CampWareHouse, Housing_Dresser…)
+
 ## Dịch Game v6.9.0 – giao diện kiểu DMM
 
 - Menu bên trái như DMM: Thư viện game, Dịch màn hình, Công cụ game (Crimson Desert, Rise of the Tomb Raider), Cài đặt
