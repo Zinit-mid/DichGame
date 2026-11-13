@@ -1,3 +1,11 @@
+## Dịch Game v6.10.0 – Bản đồ Crimson Desert
+
+- Thêm trang "Bản đồ Crimson Desert" ở menu Công cụ game
+- Vị trí và cách lấy thú cưỡi huyền thoại: ngựa trắng Royler, ngựa đen Rokade, ngựa đỏ Camora, rồng Blackstar, Wyvern, gấu trắng, sói Silver Fang, hươu tuyết...
+- Vị trí rương và két sắt có đồ xịn (vũ khí, khiên, giáp, trang sức), lọc theo nhóm, ô tìm kiếm
+- Nút "Đã lấy" để đánh dấu, "Tìm trên mạng" để xem ảnh / video chỉ đường
+- Nút mở nhanh bản đồ tương tác MapMaster, th.gl, Game8
+
 ## Dịch Game v6.9.1
 
 - Sửa: "Mod tăng ô chứa đồ 1440" không tạo được mod với Crimson Desert 2.05 (game đổi cấu trúc bảng túi đồ) – giờ tìm từng kho theo tên (Character, CampWareHouse, Housing_Dresser…)

@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.9.1"
+APP_VERSION = "6.10.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -2218,6 +2218,11 @@ class App:
                                        self._xay_cong_cu(ma, ten, g, mt))
             if self.cfg.get("trang_mo") == ma_trang and self.cfg.get("thu_gon") is not True:
                 self._chon_trang(ma_trang)
+            if ma == "cd" and "cc_bando" not in self.menu_muc:
+                self._them_menu("CÔNG CỤ GAME", "cc_bando", "◈", "Bản đồ Crimson Desert")
+                self._xay_tre["cc_bando"] = self._xay_ban_do
+                if self.cfg.get("trang_mo") == "cc_bando" and self.cfg.get("thu_gon") is not True:
+                    self._chon_trang("cc_bando")
 
     def _xay_cong_cu(self, ma, ten, g, ma_trang):
         t = self._tao_trang(ma_trang, f"Việt hóa {ten}", g["thu_muc"])
@@ -2225,6 +2230,16 @@ class App:
             self.thu_vien.mo_cd(g, cha=t)
         else:
             self.thu_vien.mo_rottr(g, cha=t)
+
+    def _xay_ban_do(self):
+        t = self._tao_trang("cc_bando", "Bản đồ Crimson Desert",
+                            "Vị trí thú cưỡi huyền thoại (rồng, ngựa trắng...), rương và két sắt có đồ xịn. "
+                            "Bấm \"Đã lấy\" để đánh dấu.")
+        try:
+            import ban_do_cd
+            self.ban_do = ban_do_cd.TrangBanDo(t, self._f, self._p, DU_LIEU)
+        except Exception as e:
+            tk.Label(t, text=f"Không mở được trang bản đồ: {e}", bg=UI_NEN, fg=UI_LOI, font=self._f(10)).pack(pady=20)
 
     def _mo_cong_cu(self, ma, g):
         ma_trang = "cc_" + ma
