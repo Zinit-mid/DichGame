@@ -1,3 +1,9 @@
+## Dịch Game v6.17.0 – Tomb Raider: công cụ dò font
+
+- Thêm nút "Dò font của game" (cửa sổ Tomb Raider, bước 3): app quét toàn bộ dữ liệu game để tìm font chữ (Scaleform, TrueType) và kiểm tra font có đủ chữ tiếng Việt có dấu không.
+- Kết quả nằm ở Desktop\DoFont_RotTR. Gửi file GuiClaude_DoFont.zip (hoặc bao_cao_font.txt) cho Claude để làm bản Việt hóa CÓ DẤU.
+- Máy được giữ thức trong lúc dò; bấm "Tạm dừng" để ngừng.
+
 ## Dịch Game v6.16.0 – Lồng tiếng đọc được tên riêng
 
 - Tên riêng tiếng nước ngoài (Kliff, Oongka, Hernand, Pywel, Lara, Konstantin...) được phiên âm sang cách đọc tiếng Việt trước khi VieNeu đọc (Kliff → "Cờ líp", Hernand → "Hơ nan"). Phụ đề vẫn giữ tên gốc.

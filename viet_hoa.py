@@ -1802,6 +1802,7 @@ class ThuVien(App):
         self._nut(hang3, "Cài Việt hóa (có dấu)", lambda: self._rt_cai(False, False), chinh=True).pack(side="left")
         self._nut(hang3, "Cài Việt hóa (không dấu)", lambda: self._rt_cai(False, True)).pack(side="left", padx=6)
         self._nut(hang3, "Gỡ Việt hóa", self._rt_go).pack(side="left")
+        self._nut(hang3, "Dò font của game", self._rt_do_font, nho=True).pack(side="left", padx=6)
         tk.Label(w, text="BƯỚC 4 – LỒNG TIẾNG VIỆT (cần app VieNeu bản GPU)", bg=UI_NEN, fg=UI_VANG,
                  font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
         nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
@@ -2028,6 +2029,45 @@ class ThuVien(App):
         for k, b in self.rt_nut_am.items():
             b.config(bg=UI_DO if k == v else UI_O)
             b.bind("<Leave>", lambda e, b=b, k=k: b.config(bg=UI_DO if k == self.rt_am else UI_O))
+
+    def _rt_do_font(self):
+        """Quet toan bo game tim font (de lam ban co dau). Ket qua ra Desktop\\DoFont_RotTR."""
+        import do_phong_rottr as dp
+        if self.rt_viec is None or self.rt_dang_chay:
+            return
+        viec = self.rt_viec
+        viec.dung.clear()
+        self.rt_dang_chay = True
+        ra = os.path.join(thu_muc_desktop(), "DoFont_RotTR")
+        self.rt_tien_do.config(text="Đang dò font (khoảng 5–15 phút, bấm Tạm dừng để ngừng)...", fg=UI_VANG)
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.rt_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            giu = False
+            try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                os.makedirs(ra, exist_ok=True)
+                kq = dp.DoPhong(viec.thu_muc_game, ra, bao, viec.dung).chay()
+                gui = os.path.basename(kq["zip"]) if kq.get("zip") else "bao_cao_font.txt"
+                chu = (f"Dò font xong ✓ Tìm thấy {kq['ttf']} font TrueType, {kq['gfx']} file Scaleform "
+                       f"({kq['font']} font bên trong).\nGửi file Desktop\\DoFont_RotTR\\{gui} cho Claude.")
+                if viec.dung.is_set():
+                    chu = "Đã dừng dò font (báo cáo phần đã dò nằm ở Desktop\\DoFont_RotTR)."
+                mau = UI_XANH
+            except Exception as e:
+                chu, mau = f"Lỗi dò font: {e}", UI_LOI
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
+            self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
+                                        self.rt_tien_do.config(text=chu, fg=mau))))
+        threading.Thread(target=chay, daemon=True).start()
 
     def _rt_xoa_giong(self):
         if self.rt_viec is None or self.rt_dang_chay:
