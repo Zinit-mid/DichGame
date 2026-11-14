@@ -1806,13 +1806,14 @@ class ThuVien(App):
                  font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
         nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
              "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
-             "• Làm GÓI THỬ trước (10 câu của Lara) → bấm Cài Việt hóa → vào game nghe thử. Chạy lại = làm tiếp.",
+             "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game (app tự dịch trước) → bấm Cài Việt hóa → vào game nghe thử. "
+             "Chạy lại = làm tiếp.",
              UI_PHU, 9).pack(fill="x")
         self.rt_lt = nhan("", UI_CHU, 10)
         self.rt_lt.pack(fill="x", pady=(4, 0))
         hang4 = tk.Frame(w, bg=UI_NEN)
         hang4.pack(fill="x", pady=(6, 4))
-        self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu Lara)", lambda: self._rt_long_tieng(True), chinh=True)
+        self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu đầu game)", lambda: self._rt_long_tieng(True), chinh=True)
         self.rt_nut_lt.pack(side="left")
         self._nut(hang4, "Lồng tiếng tất cả", lambda: self._rt_long_tieng(False)).pack(side="left", padx=6)
         self._nut(hang4, "Tạm dừng", self._rt_dung).pack(side="left")
@@ -1957,6 +1958,7 @@ class ThuVien(App):
         threading.Thread(target=chay, daemon=True).start()
 
     def _rt_long_tieng(self, thu):
+        import viet_hoa_cd as vcd
         if self.rt_viec is None or self.rt_dang_chay:
             return
         viec = self.rt_viec
@@ -1974,11 +1976,12 @@ class ThuVien(App):
         def chay():
             mau = UI_XANH
             try:
-                kq = viec.long_tieng(thu=thu, bao=bao, tien_do=tien_do)
+                kq = viec.long_tieng(thu=thu, bao=bao, tien_do=tien_do, may=self.rt_may,
+                                     khoa=vcd.doc_khoa_claude())
                 if kq is None:
                     chu, mau = "Đã tạm dừng – bấm lại để làm tiếp.", UI_VANG
                 elif thu:
-                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại của Lara ✓\nBấm \"Cài Việt hóa (có dấu)\" (tắt game trước), "
+                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại đầu game ✓\nBấm \"Cài Việt hóa (có dấu)\" (tắt game trước), "
                            f"rồi vào game nghe thử. Giọng nằm ở {viec.thu_muc_giong()}")
                 else:
                     chu = (f"Lồng tiếng xong: thêm {kq['file']:,} đoạn, tổng {kq['da_co']:,}/{kq.get('tong', kq['da_co']):,} ✓ "
@@ -1986,7 +1989,7 @@ class ThuVien(App):
             except Exception as e:
                 chu, mau = f"Lỗi lồng tiếng: {e}", UI_LOI
             self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
-                                        self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu Lara)"),
+                                        self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu đầu game)"),
                                         self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
         threading.Thread(target=chay, daemon=True).start()
 

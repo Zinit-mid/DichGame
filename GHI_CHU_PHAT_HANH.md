@@ -1,3 +1,8 @@
+## Dịch Game v6.12.0 – Tomb Raider
+
+- Sửa chữ có dấu ra ô vuông: font game chỉ có À Á Ì Í Ù…, thiếu Ế Ụ Ọ Ớ Ử Đ. Giờ "Cài Việt hóa (có dấu)" tự ghép chữ cái + dấu rời cho các chữ font thiếu, Đ thành D.
+- "Lồng tiếng thử" lấy 10 đoạn thoại ĐẦU GAME (tự dịch các câu đó trước, không cần chờ dịch hết) để dễ nghe thử.
+
 ## Dịch Game v6.11.1
 
 - Sửa lỗi nặng: cài Việt hóa Tomb Raider có lồng tiếng xong thì game mất luôn cả chữ tiếng Việt và vẫn nói tiếng Anh – bảng file trong gói chưa xếp theo thứ tự nên game không tìm thấy. Bấm "Cài Việt hóa" lại một lần.

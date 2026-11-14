@@ -207,6 +207,35 @@ def ghi_locals(lang, khoa, chuoi, so_chuoi=None):
     return dau + bytes(con_tro) + bytes(than)
 
 
+_LATIN1 = set(chr(c) for c in range(0xC0, 0x100))
+
+
+def dau_ghep(s):
+    """Font game chi co chu co dau Latin-1 (À Á Â Ã È É Ê Ì Í Ò Ó Ô Õ Ù Ú Ý...), thieu Ế Ụ Ọ Ớ Ử Đ...
+    -> giu chu font co, chu thieu thi ghep chu cai + dau roi (U+0300..U+0323); Đ -> D."""
+    ra = []
+    for ch in unicodedata.normalize("NFC", s):
+        if ord(ch) < 0x80 or ch in _LATIN1:
+            ra.append(ch)
+            continue
+        if ch in "đĐ":
+            ra.append("d" if ch == "đ" else "D")
+            continue
+        d = unicodedata.normalize("NFD", ch)
+        goc, dau = d[0], d[1:]
+        if not dau:
+            ra.append(ch)
+            continue
+        tot = goc + dau
+        for i in range(len(dau)):
+            c = unicodedata.normalize("NFC", goc + dau[i])
+            if c in _LATIN1:
+                tot = c + dau[:i] + dau[i + 1:]
+                break
+        ra.append(tot)
+    return "".join(ra)
+
+
 def bo_dau(s):
     """Tieng Viet khong dau (du phong khi font game khong co dau tieng Viet)."""
     s = s.replace("đ", "d").replace("Đ", "D")
@@ -391,6 +420,10 @@ class ViecRottr(vcd.ViecDich):
         return not self.bang_ten.la_ten(v)
 
     def _chuoi_cua_dot(self):
+        chi = getattr(self, "chi_cau", None)
+        if chi is not None:          # chi dich mot nhom cau (goi thu long tieng)
+            yield from chi
+            return
         for v in self.goc.values():
             if self.nen_dich(None, v):
                 yield v
@@ -510,11 +543,13 @@ class ViecRottr(vcd.ViecDich):
     def _the(self, s):
         return sorted(self.THE.findall(s))
 
-    def chuoi_viet(self, en, khong_dau=False):
+    def chuoi_viet(self, en, khong_dau=False, goc=False):
         vi = self.bo_nho.get(en)
         if not vi or vi == en or self._the(vi) != self._the(en):
             return None
-        return bo_dau(vi) if khong_dau else vi
+        if goc:
+            return vi
+        return bo_dau(vi) if khong_dau else dau_ghep(vi)
 
     # ---------------------------------------------------------- cai / go
     def da_cai(self):
@@ -528,8 +563,8 @@ class ViecRottr(vcd.ViecDich):
         for i, en in goc.items():
             if chi_thu:
                 vi = CHU_THU.get(en.strip().lower())
-                if vi and khong_dau:
-                    vi = bo_dau(vi)
+                if vi:
+                    vi = bo_dau(vi) if khong_dau else dau_ghep(vi)
             else:
                 vi = self.chuoi_viet(en, khong_dau)
             if vi:
@@ -608,7 +643,7 @@ class ViecRottr(vcd.ViecDich):
         for khung, en in t["pd"]:
             if not en:
                 continue
-            vi = self.chuoi_viet(en)
+            vi = self.chuoi_viet(en, goc=True)
             ra.append((khung, self.chu_de_doc(vi) if vi else ""))
         return ra
 
@@ -656,8 +691,31 @@ class ViecRottr(vcd.ViecDich):
             raise LoiDung(f"{nhan} bị lỗi:\n" + "\n".join(cuoi[-3:]))
         return True
 
-    def long_tieng(self, thu=False, bao=lambda s: None, tien_do=lambda a, b, s: None):
-        """thu=True: chi 10 file loi thoai cua Lara (kiem tra game nhan giong moi). Chay lai = lam tiep.
+    @staticmethod
+    def thu_tu_game(ten_fsb):
+        """'100_bp_115_090_lara.str_0' -> khoa xep theo tien trinh game (so dau ten = khu vuc / man)."""
+        t = ten_fsb.split(".")[0].split("#")[0].split("_")
+        return tuple((0, int(x), "") if x.isdigit() else (1, 0, x) for x in t)
+
+    def dich_truoc(self, cac_cau, may="claude", khoa=None, gioi_han=0.5, bao=lambda s: None):
+        """Dich ngay mot nhom cau (goi thu) bang may da chon."""
+        can = [c for c in dict.fromkeys(cac_cau) if not self.chuoi_viet(c, goc=True)]
+        if not can:
+            return
+        self.chi_cau = can
+        try:
+            bao(f"Đang dịch {len(can)} câu thoại cho gói thử...")
+            if may == "offline":
+                self.chay_offline(bao, lambda a, b, t: None)
+            else:
+                if not khoa:
+                    raise LoiDung("chưa có mã Claude – lưu mã trong Cài đặt, hoặc chọn máy dịch Offline")
+                self.chay(khoa, gioi_han, bao, lambda a, b, t: None)
+        finally:
+            self.chi_cau = None
+
+    def long_tieng(self, thu=False, bao=lambda s: None, tien_do=lambda a, b, s: None, may="claude", khoa=None):
+        """thu=True: 10 doan thoai DAU GAME (tu dich truoc neu chua dich) de nghe thu. Chay lai = lam tiep.
         -> dict thong ke, None neu bi dung."""
         vn = vcd.ViecDich.tim_vieneu()
         if not vn:
@@ -669,22 +727,27 @@ class ViecRottr(vcd.ViecDich):
         tat_ca = self.mul_long_tieng_duoc()
         if not tat_ca:
             raise LoiDung("không tìm thấy lời thoại nào trong game (thử bấm Quét lại)")
+        if thu:
+            dau = [m for m, t in sorted(tat_ca.items(), key=lambda x: (self.thu_tu_game(x[1]["ten"]), x[0]))
+                   if 1.0 < t["mau"] / 44100 < 12 and any(re.search(r"[A-Za-z]{2,}", self.THE.sub("", en))
+                                                           for _, en in t["pd"] if en)][:10]
+            self.dich_truoc([en for m in dau for _, en in tat_ca[m]["pd"] if en], may, khoa, 0.5, bao)
+            if self.dung.is_set():
+                return None
+            self.luu()
         chon = {}
-        for m, t in sorted(tat_ca.items(), key=lambda x: (x[1]["ten"], x[0])):
+        for m, t in sorted(tat_ca.items(), key=lambda x: (self.thu_tu_game(x[1]["ten"]), x[0])):
+            if thu and m not in dau:
+                continue
             cau = self._cau_doc(t)
             if not any(c for _, c in cau):
                 continue
-            if thu:
-                if self.nguoi_noi(t["ten"]) != "lara" or not all(c for _, c in cau) or not 1.5 < t["mau"] / 44100 < 9:
-                    continue
-            elif self.file_giong(m):
+            if not thu and self.file_giong(m):
                 continue
             chon[m] = cau
-            if thu and len(chon) >= 10:
-                break
         if not chon:
             if thu:
-                raise LoiDung("chưa có câu thoại nào của Lara được dịch – bấm Bắt đầu dịch trước")
+                raise LoiDung("không dịch được câu thoại đầu game – kiểm tra mã Claude / máy dịch")
             return {"file": 0, "da_co": sum(1 for m in tat_ca if self.file_giong(m))}
         # 1. giong mau tung nguoi noi (lay 3 cau goc 2.5-10 giay)
         nguoi = {}
