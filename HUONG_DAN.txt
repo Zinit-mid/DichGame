@@ -128,3 +128,18 @@ VIỆT HÓA GAME (gộp từ app Việt Hóa Game)
   - Crimson Desert: bấm "Việt hóa bằng Claude" -> chọn Đợt 1/2/3 -> chọn máy dịch -> Bắt đầu dịch
     -> Xuất gói cho DMM (file zip ở Desktop) -> nhập vào DMM -> Mount Mods. Ngôn ngữ game để English.
   - Khi dịch màn hình, câu nào đã có trong bản Việt hóa thì app hiện luôn bản đó (miễn phí).
+
+DÒ FILE CHỮ (dùng cho MỌI game – tự làm, không cần Claude hỗ trợ)
+  1. Thư viện game -> ở game muốn Việt hóa bấm "Dò file chữ" -> "Dò game này".
+     App chỉ dò đúng thư mục game đó; kết quả được lưu lại, lần sau mở ra là thấy ngay.
+  2. Danh sách hiện: đường dẫn file, loại file, số câu, % tiếng Anh, vài câu mẫu.
+     Bấm "Mở thư mục" để xem file đó nằm ở đâu. Đánh dấu ✓ các file muốn Việt hóa
+     (thường là file có nhiều câu nhất, tên có en / english).
+  3. Dịch: chọn Claude hoặc Offline -> "Dịch các file đã chọn".
+     Hoặc tự dịch: "Xuất Excel để tự dịch" -> mở file TuDich_<tên game>.csv trên Desktop bằng Excel
+     -> điền cột "Tiếng Việt" -> lưu dạng "CSV UTF-8" -> "Nạp file đã dịch".
+  4. Tắt game -> "Ghi vào game". App giữ bản gốc trước khi ghi. Chữ hiện ô vuông -> đánh dấu "Không dấu" rồi ghi lại.
+  5. Muốn về tiếng Anh: "Trả lại bản gốc".
+  - Đọc / ghi được: JSON (cả RPG Maker), CSV/TSV, XML, INI/LANG/PROPERTIES/STRINGS, PO, YAML, TXT,
+    Ren'Py .rpy, Unreal .locres để rời.
+  - Chưa hỗ trợ: gói nén riêng của game (.pak, .assets, .rpa, .tiger, .paz...) -> dùng Dịch màn hình (F12).

@@ -1674,6 +1674,7 @@ class ThuVien(App):
             self._nut(nut, chu, lambda: self.cai(g, goi), chinh=True, nho=True, bieu_tuong="⬇").pack(
                 side="left", padx=(0, P(6)))
         self._nut(nut, "Nạp bản dịch", lambda: self.nap_tu_file(g), nho=True).pack(side="left", padx=(0, P(6)))
+        self._nut(nut, "Dò file chữ", lambda: self.mo_do_file(g), nho=True).pack(side="left", padx=(0, P(6)))
         if bg:
             self._nut(nut, "Gỡ", lambda: self.khoi_phuc(g), nho=True, kieu="nguy_hiem").pack(side="left",
                                                                                          padx=(0, P(6)))
@@ -2089,6 +2090,364 @@ class ThuVien(App):
             return
         self.rt_tien_do.config(text="Đã gỡ Việt hóa – game trở lại tiếng Anh ✓", fg=UI_XANH)
         self._rt_da_nap(self.rt_viec)
+
+    # ---------- Do file chu (moi game)
+    def mo_do_file(self, g):
+        import do_file_chu as dfc
+        tk = self.tk
+        cu = getattr(self, "cua_so_df", None)
+        if cu is not None:
+            try:
+                if self.df_game is g or self.df_game["thu_muc"] == g["thu_muc"]:
+                    cu.lift()
+                    return
+                if self.df_dang_chay:
+                    cu.lift()
+                    return
+                cu.destroy()
+            except Exception:
+                pass
+        w = tk.Toplevel(self.root)
+        self.cua_so_df, self.df_game = w, g
+        self.df_dang_chay = False
+        w.title(f"Dò file chữ – {g['ten']}")
+        w.configure(bg=UI_NEN, padx=18, pady=14)
+        w.geometry("860x820")
+
+        def dong():
+            if self.df_dang_chay and self.df_viec is not None:
+                self.df_viec.dung.set()
+            self.cua_so_df = None
+            w.destroy()
+        w.protocol("WM_DELETE_WINDOW", dong)
+        nhan = lambda cha, chu, mau=UI_CHU, co=10, dam=False, bg=UI_NEN: tu_xuong_dong(tk.Label(
+            cha, text=chu, bg=bg, fg=mau, font=ft(co, "bold" if dam else "normal"),
+            anchor="w", justify="left", wraplength=780), cha)
+        nhan(w, f"Dò file chữ – {g['ten']}", co=13, dam=True).pack(fill="x")
+        nhan(w, f"Thư mục game: {g['thu_muc']}", UI_PHU, 9).pack(fill="x")
+        nhan(w, "• App chỉ dò game này: tìm các file chứa chữ tiếng Anh, cho biết file nào, loại gì, bao nhiêu câu.\n"
+                "• Đánh dấu ✓ file muốn Việt hóa → Dịch (Claude / Offline) hoặc tự dịch bằng Excel → Ghi vào game.\n"
+                "• Trước khi ghi, app luôn giữ bản gốc; bấm \"Trả lại bản gốc\" để game về tiếng Anh. TẮT GAME trước khi ghi.",
+             UI_PHU, 9).pack(fill="x", pady=(4, 6))
+        h = tk.Frame(w, bg=UI_NEN)
+        h.pack(fill="x")
+        self.df_nut_do = self._nut(h, "Dò game này", self._df_do, chinh=True, nho=True)
+        self.df_nut_do.pack(side="left")
+        self.df_tt = nhan(h, "", UI_CHU, 9)
+        self.df_tt.pack(side="left", fill="x", expand=True, padx=10)
+
+        # danh sach file (cuon)
+        khung = tk.Frame(w, bg=UI_THE, highlightthickness=1, highlightbackground="#26324f")
+        khung.pack(fill="both", expand=True, pady=(8, 6))
+        cv = tk.Canvas(khung, bg=UI_THE, highlightthickness=0, height=330)
+        thanh = tk.Scrollbar(khung, orient="vertical", command=cv.yview)
+        self.df_ds = tk.Frame(cv, bg=UI_THE)
+        self.df_ds.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv.create_window((0, 0), window=self.df_ds, anchor="nw", width=800)
+        cv.configure(yscrollcommand=thanh.set)
+        cv.pack(side="left", fill="both", expand=True)
+        thanh.pack(side="right", fill="y")
+        cv.bind("<Enter>", lambda e: cv.bind_all("<MouseWheel>", lambda ev: cv.yview_scroll(-ev.delta // 120, "units")))
+        cv.bind("<Leave>", lambda e: cv.unbind_all("<MouseWheel>"))
+
+        self.df_thong_ke = nhan(w, "", UI_CHU, 10)
+        self.df_thong_ke.pack(fill="x", pady=(2, 4))
+        hm = tk.Frame(w, bg=UI_NEN)
+        hm.pack(fill="x", pady=(2, 0))
+        tk.Label(hm, text="Máy dịch:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
+        self.df_may = self.cfg.get("df_may", "claude")
+        self.df_nut_may = {}
+        for k, chu in (("claude", "Claude (tốn tiền, hay hơn)"), ("offline", "Offline (miễn phí)")):
+            b = self._nut(hm, chu, lambda k=k: self._df_chon_may(k), nho=True)
+            b.pack(side="left", padx=2)
+            self.df_nut_may[k] = b
+        tk.Label(hm, text="  Giới hạn:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(8, 4))
+        self.df_gh = 2.0
+        self.df_nut_gh = {}
+        for v in (1.0, 2.0, 5.0):
+            b = self._nut(hm, f"${v:.0f}", lambda v=v: self._df_chon_gh(v), nho=True)
+            b.pack(side="left", padx=2)
+            self.df_nut_gh[v] = b
+        h1 = tk.Frame(w, bg=UI_NEN)
+        h1.pack(fill="x", pady=(8, 0))
+        self.df_nut_dich = self._nut(h1, "Dịch các file đã chọn", self._df_dich, chinh=True)
+        self.df_nut_dich.pack(side="left")
+        self._nut(h1, "Tạm dừng", self._df_dung).pack(side="left", padx=6)
+        self._nut(h1, "Xuất Excel để tự dịch", self._df_xuat, nho=True).pack(side="left", padx=(12, 4))
+        self._nut(h1, "Nạp file đã dịch", self._df_nap, nho=True).pack(side="left")
+        h2 = tk.Frame(w, bg=UI_NEN)
+        h2.pack(fill="x", pady=(8, 0))
+        self.df_khong_dau = tk.BooleanVar(value=False)
+        self._nut(h2, "Ghi vào game", self._df_ghi, chinh=True).pack(side="left")
+        tk.Checkbutton(h2, text="Không dấu (khi game hiện ô vuông)", variable=self.df_khong_dau, bg=UI_NEN, fg=UI_PHU,
+                       selectcolor=UI_THE, activebackground=UI_NEN, activeforeground=UI_CHU, font=ft(10), bd=0,
+                       highlightthickness=0).pack(side="left", padx=10)
+        self._nut(h2, "Trả lại bản gốc", self._df_tra, nho=True, kieu="nguy_hiem").pack(side="left", padx=6)
+        self.df_tien_do = nhan(w, "", UI_VANG, 10)
+        self.df_tien_do.pack(fill="x", pady=(8, 0))
+        self._df_chon_may(self.df_may, luu=False)
+        self._df_chon_gh(2.0)
+        self.df_viec = dfc.ViecFile(g["thu_muc"], g["ten"]).nap()
+        if self.df_viec.kq_quet:
+            self._df_ve()
+        else:
+            self.df_tt.config(text="Chưa dò game này. Bấm \"Dò game này\".", fg=UI_VANG)
+            self._df_thong_ke()
+
+    def _df_chon_may(self, k, luu=True):
+        self.df_may = k
+        if luu:
+            self.cfg["df_may"] = k
+            ghi_json(FILE_CAU_HINH, self.cfg)
+        for kk, b in self.df_nut_may.items():
+            b.config(bg=UI_DO if kk == k else UI_O)
+            b.bind("<Leave>", lambda e, b=b, kk=kk: b.config(bg=UI_DO if kk == self.df_may else UI_O))
+
+    def _df_chon_gh(self, v):
+        self.df_gh = v
+        for k, b in self.df_nut_gh.items():
+            b.config(bg=UI_DO if k == v else UI_O)
+            b.bind("<Leave>", lambda e, b=b, k=k: b.config(bg=UI_DO if k == self.df_gh else UI_O))
+
+    def _df_bao(self, s, mau=UI_VANG):
+        self.q.put(("goi", lambda: self.df_tien_do.config(text=s, fg=mau) if self.cua_so_df else None))
+
+    def _df_do(self):
+        if self.df_dang_chay:
+            return
+        viec = self.df_viec
+        viec.dung.clear()
+        self.df_dang_chay = True
+        self.df_tt.config(text="Đang dò...", fg=UI_VANG)
+
+        def bao(s):
+            self.q.put(("goi", lambda: self.df_tt.config(text=s, fg=UI_VANG) if self.cua_so_df else None))
+
+        def chay():
+            loi = None
+            try:
+                viec.quet(bao)
+            except Exception as e:
+                loi = str(e)
+
+            def xong():
+                self.df_dang_chay = False
+                if not self.cua_so_df:
+                    return
+                if loi:
+                    self.df_tt.config(text=f"Lỗi khi dò: {loi}", fg=UI_LOI)
+                else:
+                    self._df_ve()
+            self.q.put(("goi", xong))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _df_ve(self):
+        tk = self.tk
+        viec = self.df_viec
+        kq = viec.kq_quet or {}
+        for c in self.df_ds.winfo_children():
+            c.destroy()
+        ds = kq.get("file", [])
+        da_ghi = viec.da_ghi()
+        eng = f" • Engine: {kq['engine']}" if kq.get("engine") else ""
+        so_tep = f"{kq.get('so_tep', 0):,}".replace(",", ".")
+        self.df_tt.config(text=f"Dò lúc {kq.get('luc', '?')}: {so_tep} file, có {len(ds)} file chữ" + eng,
+                          fg=UI_XANH if ds else UI_VANG)
+        self.df_bien = {}
+        nen = UI_THE
+        if not ds:
+            tk.Label(self.df_ds, text="Không thấy file chữ nào app đọc được trong game này.", bg=nen, fg=UI_VANG,
+                     font=ft(10), anchor="w").pack(fill="x", padx=10, pady=8)
+        for f in ds[:80]:
+            td = f["tuong_doi"]
+            hang = tk.Frame(self.df_ds, bg=nen, padx=8, pady=5)
+            hang.pack(fill="x")
+            v = tk.BooleanVar(value=td in viec.chon)
+            self.df_bien[td] = v
+            tk.Checkbutton(hang, variable=v, command=self._df_doi_chon, bg=nen, selectcolor=UI_O,
+                           activebackground=nen, bd=0, highlightthickness=0).pack(side="left", anchor="n")
+            ben = tk.Frame(hang, bg=nen)
+            ben.pack(side="left", fill="x", expand=True)
+            dong1 = tk.Frame(ben, bg=nen)
+            dong1.pack(fill="x")
+            tk.Label(dong1, text=td, bg=nen, fg=UI_CHU, font=ft(10, "bold"), anchor="w").pack(side="left")
+            if td in da_ghi:
+                tk.Label(dong1, text="  ● đã ghi Việt hóa", bg=nen, fg=UI_XANH, font=ft(9, "bold")).pack(side="left")
+            self._nut(dong1, "Mở thư mục", lambda td=td: self._df_mo_file(td), nho=True).pack(side="right")
+            import do_file_chu as dfc
+            tt = (f"{dfc.TEN_LOAI.get(f['loai'], f['loai'])} • {f['so']:,} chuỗi chữ ({f['so_cau']:,} câu dài) • "
+                  f"tiếng Anh {min(100, int(f['anh'] * 400))}% • {f['co'] / 1024:,.0f} KB").replace(",", ".")
+            tk.Label(ben, text=tt, bg=nen, fg=UI_PHU, font=ft(9), anchor="w").pack(fill="x")
+            for m in f.get("mau", [])[:2]:
+                tk.Label(ben, text=f"   “{m[:110]}”", bg=nen, fg="#7f8ba3", font=ft(9, "italic"), anchor="w").pack(fill="x")
+        goi = kq.get("goi", [])
+        if goi:
+            tk.Label(self.df_ds, text="GÓI NÉN RIÊNG CỦA GAME – chưa hỗ trợ (chữ có thể nằm trong các gói này):",
+                     bg=nen, fg=UI_VANG, font=ft(9, "bold"), anchor="w").pack(fill="x", padx=10, pady=(10, 2))
+            for gg in goi[:10]:
+                tk.Label(self.df_ds, text=f"✗ {gg['loai']}: {gg['so']} file, {gg['co'] / 2**20:.0f} MB – ví dụ "
+                                          f"{', '.join(gg['vi_du'][:2])}",
+                         bg=nen, fg=UI_PHU, font=ft(9), anchor="w", justify="left", wraplength=760).pack(
+                    fill="x", padx=18)
+            tk.Label(self.df_ds, text="→ Với chữ nằm trong gói nén: dùng Dịch màn hình (F12 / vùng phụ đề) của app.",
+                     bg=nen, fg=UI_PHU, font=ft(9), anchor="w").pack(fill="x", padx=10, pady=(4, 8))
+        self._df_doi_chon()
+
+    def _df_mo_file(self, td):
+        p = os.path.join(self.df_viec.thu_muc_game, td)
+        try:
+            if os.name == "nt":
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(p)])
+            else:
+                os.startfile(os.path.dirname(p))
+        except Exception as e:
+            self.df_tien_do.config(text=f"Không mở được: {e}", fg=UI_LOI)
+
+    def _df_doi_chon(self):
+        viec = self.df_viec
+        viec.chon = [td for td, v in self.df_bien.items() if v.get()]
+        viec.luu_quet()
+        try:
+            viec.doc_chon()
+        except Exception:
+            pass
+        self._df_thong_ke()
+
+    def _df_thong_ke(self):
+        import viet_hoa_cd as vcd
+        viec = self.df_viec
+        if not viec.chon:
+            self.df_thong_ke.config(text="Chưa chọn file nào (đánh dấu ✓ ở danh sách trên).", fg=UI_VANG)
+            return
+        t = viec.thong_ke()
+        gia, _ = vcd.doc_gia()
+        usd = vcd.ViecDich.uoc_tinh_usd(t["ky_tu_con"], gia)
+        chu = (f"Đã chọn {len(viec.chon)} file • {t['tong']:,} câu • đã dịch {t['da_dich']:,} • còn {t['con']:,} câu"
+               + (f" (Claude ≈ {usd:.2f} USD)" if t["con"] else " ✓")).replace(",", ".")
+        if t["con"] and self.df_may == "claude" and not vcd.doc_khoa_claude():
+            chu += "\n⚠ Chưa có mã Claude: bấm Cài đặt → Claude AI để lưu mã, hoặc chọn Offline / tự dịch bằng Excel."
+        self.df_thong_ke.config(text=chu, fg=UI_CHU)
+
+    def _df_dich(self):
+        import viet_hoa_cd as vcd
+        viec = self.df_viec
+        if self.df_dang_chay or not viec.chon:
+            if not viec.chon:
+                self.df_tien_do.config(text="Đánh dấu ✓ ít nhất 1 file trước.", fg=UI_VANG)
+            return
+        khoa = vcd.doc_khoa_claude()
+        may, gh = self.df_may, self.df_gh
+        if may == "claude" and not khoa:
+            self.df_tien_do.config(text="Chưa có mã Claude – lưu mã trong Cài đặt, hoặc chọn Offline.", fg=UI_LOI)
+            return
+        self.df_dang_chay = True
+        viec.dung.clear()
+        self.df_nut_dich.config(text="Đang dịch...")
+        bat_dau = time.time()
+
+        def tien_do(xong, tong, tien):
+            con = (time.time() - bat_dau) / max(xong, 1) * (tong - xong)
+            self._df_bao((f"Đã dịch {xong:,}/{tong:,} câu ({xong * 100 // max(tong, 1)}%) • "
+                          + (f"đã tốn {tien:.3f} USD " if may == "claude" else "offline ")
+                          + f"• còn khoảng {con / 60:.0f} phút").replace(",", "."))
+
+        def chay():
+            giu = False
+            try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                xong = (viec.chay_offline(self._df_bao, tien_do) if may == "offline"
+                        else viec.chay(khoa, gh, self._df_bao, tien_do))
+                if xong:
+                    self._df_bao("Dịch xong ✓ Tắt game rồi bấm \"Ghi vào game\".", UI_XANH)
+            except Exception as e:
+                self._df_bao(f"Lỗi: {e}", UI_LOI)
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
+
+            def xong_ui():
+                self.df_dang_chay = False
+                if self.cua_so_df:
+                    self.df_nut_dich.config(text="Dịch các file đã chọn")
+                    self._df_thong_ke()
+            self.q.put(("goi", xong_ui))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _df_dung(self):
+        if self.df_dang_chay:
+            self.df_viec.dung.set()
+            self.df_tien_do.config(text="Đang dừng...", fg=UI_VANG)
+
+    def _df_xuat(self):
+        viec = self.df_viec
+        if not viec.chon:
+            self.df_tien_do.config(text="Đánh dấu ✓ ít nhất 1 file trước.", fg=UI_VANG)
+            return
+        ten = re.sub(r"[^\w\-]+", "_", self.df_game["ten"])[:40]
+        p = os.path.join(thu_muc_desktop(), f"TuDich_{ten}.csv")
+        try:
+            n = viec.xuat_csv(p)
+        except Exception as e:
+            self.df_tien_do.config(text=f"Không xuất được: {_loi_quyen(e)}", fg=UI_LOI)
+            return
+        self.df_tien_do.config(
+            text=(f"Đã xuất {n:,} câu ra Desktop\\TuDich_{ten}.csv ✓\n".replace(",", ".") +
+                  "Mở bằng Excel, điền cột \"Tiếng Việt\" (không sửa cột Tiếng Anh). Lưu lại dạng "
+                  "\"CSV UTF-8\" hoặc \"Unicode Text\", rồi bấm \"Nạp file đã dịch\"."), fg=UI_XANH)
+
+    def _df_nap(self):
+        p = self.filedialog.askopenfilename(parent=self.cua_so_df, title="Chọn file đã dịch",
+                                            initialdir=thu_muc_desktop(),
+                                            filetypes=[("File đã dịch (.csv .txt)", "*.csv *.txt"), ("Tất cả", "*.*")])
+        if not p:
+            return
+        try:
+            n = self.df_viec.nap_csv(p)
+        except Exception as e:
+            self.df_tien_do.config(text=f"Không đọc được file: {e}", fg=UI_LOI)
+            return
+        self.df_tien_do.config(text=f"Đã nạp {n:,} câu tiếng Việt ✓ Tắt game rồi bấm \"Ghi vào game\"."
+                               .replace(",", "."), fg=UI_XANH)
+        self._df_thong_ke()
+
+    def _df_ghi(self):
+        viec = self.df_viec
+        if self.df_dang_chay or not viec.chon:
+            if not viec.chon:
+                self.df_tien_do.config(text="Đánh dấu ✓ ít nhất 1 file trước.", fg=UI_VANG)
+            return
+        try:
+            n = viec.ghi_vao_game(khong_dau=self.df_khong_dau.get())
+        except Exception as e:
+            self.df_tien_do.config(text=f"Không ghi được: {_loi_quyen(e)}", fg=UI_LOI)
+            return
+        self.df_tien_do.config(text=(f"Đã ghi {n:,} câu tiếng Việt vào {len(viec.chon)} file ✓ (bản gốc đã giữ lại). "
+                                     "Mở game xem thử. Chữ hiện ô vuông → đánh dấu \"Không dấu\" rồi ghi lại.")
+                               .replace(",", "."), fg=UI_XANH)
+        self._df_ve()
+
+    def _df_tra(self):
+        viec = self.df_viec
+        if self.df_dang_chay:
+            return
+        if not viec.da_ghi():
+            self.df_tien_do.config(text="Game này chưa được ghi Việt hóa.", fg=UI_VANG)
+            return
+        if not self.messagebox.askyesno("Trả lại bản gốc", "Trả các file đã ghi Việt hóa về bản gốc tiếng Anh?",
+                                        parent=self.cua_so_df):
+            return
+        try:
+            n = viec.tra_lai()
+        except Exception as e:
+            self.df_tien_do.config(text=f"Không trả lại được: {_loi_quyen(e)}", fg=UI_LOI)
+            return
+        self.df_tien_do.config(text=f"Đã trả {n} file về bản gốc ✓ (bản dịch vẫn được lưu, ghi lại lúc nào cũng được).",
+                               fg=UI_XANH)
+        self._df_ve()
 
     def nap_tu_file(self, g):
         p = self.filedialog.askopenfilename(

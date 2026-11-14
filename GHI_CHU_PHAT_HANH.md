@@ -1,3 +1,10 @@
+## Dịch Game v6.18.0 – Dò file chữ cho mọi game
+
+- Mỗi game trong Thư viện có nút mới "Dò file chữ": app dò đúng thư mục game đó, liệt kê file nào chứa chữ tiếng Anh (đường dẫn, loại file, số câu, câu mẫu) và có nút "Mở thư mục" để xem file.
+- Đánh dấu ✓ file muốn Việt hóa → dịch bằng Claude / Offline, hoặc "Xuất Excel để tự dịch" rồi "Nạp file đã dịch".
+- "Ghi vào game" luôn giữ bản gốc; "Trả lại bản gốc" để về tiếng Anh. Có tùy chọn "Không dấu" khi game hiện ô vuông.
+- Đọc / ghi được: JSON (cả RPG Maker), CSV, XML, INI/LANG, PO, YAML, TXT, Ren'Py .rpy, Unreal .locres. Gói nén riêng của game (.pak, .assets...) được báo "chưa hỗ trợ".
+
 ## Dịch Game v6.17.0 – Tomb Raider: công cụ dò font
 
 - Thêm nút "Dò font của game" (cửa sổ Tomb Raider, bước 3): app quét toàn bộ dữ liệu game để tìm font chữ (Scaleform, TrueType) và kiểm tra font có đủ chữ tiếng Việt có dấu không.
