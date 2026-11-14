@@ -918,6 +918,13 @@ class ViecDich:
         ds = [d for d in ds if d[1]]
         if not ds:
             raise LoiDung("chưa có câu Kliff nào được Việt hóa – chạy Đợt 1 trước")
+        import phien_am
+        td = phien_am.TuDien()
+        try:
+            td.hoc_bang_claude([d[1] for d in ds], doc_khoa_claude(), bao)
+        except Exception:
+            pass
+        ds = [[d[0], td.doc_duoc(d[1]), d[2]] for d in ds]
         vn = self.tim_vieneu()
         if not vn:
             raise LoiDung("không tìm thấy app VieNeu (bản tăng tốc GPU) – mở VieNeu, cài 'GPU' rồi thử lại")
@@ -1237,6 +1244,12 @@ class ViecDich:
         if trong < can_gb * 1.2 + 2:
             raise LoiDung(f"ổ đĩa {thu_muc_lv[:3]} chỉ còn {trong:.0f} GB, cần khoảng {can_gb * 1.2 + 2:.0f} GB trống")
         vgm = self.lay_vgmstream(bao)
+        import phien_am
+        td = phien_am.TuDien()
+        try:
+            td.hoc_bang_claude([self.lam_sach_loi(c["vi"]) for ds in can.values() for c in ds], doc_khoa_claude(), bao)
+        except Exception:
+            pass                      # khong co mang / ma Claude -> dung quy tac phien am tu dong
         viec = []
         thieu_mau = []
         for i, (g, ds) in enumerate(sorted(can.items(), key=lambda x: -len(x[1])), 1):
@@ -1251,7 +1264,8 @@ class ViecDich:
             x = self._doc_wav16(mau)
             rms = float(np.sqrt(np.mean(x ** 2))) if len(x) else 0.08
             viec.append({"ten": g, "mau": mau, "ra": os.path.join(thu, "wav"), "rms": min(max(rms, 0.03), 0.2),
-                         "ds": [[c["ten"], self.lam_sach_loi(c["vi"]), round(c["giay"], 3)] for c in ds]})
+                         "ds": [[c["ten"], td.doc_duoc(self.lam_sach_loi(c["vi"])), round(c["giay"], 3)]
+                                for c in ds]})
             if self.dung.is_set():
                 return None
         tam = os.path.join(THU_MUC_CD, "vieneu_tam")

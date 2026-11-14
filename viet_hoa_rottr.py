@@ -899,14 +899,20 @@ class ViecRottr(vcd.ViecDich):
                                                 bao, "Bước 2/4: tạo giọng mẫu"):
             return None
 
-        # 3. VieNeu doc tung cau
+        # 3. VieNeu doc tung cau (ten rieng phien am sang cach doc tieng Viet)
+        import phien_am
+        td = phien_am.TuDien()
+        try:
+            td.hoc_bang_claude([c for cau in chon.values() for _, c, _ in cau if c], khoa, bao)
+        except Exception:
+            pass
         nhom = {}
         for (m, i), g in nguoi_cau.items():
             chu = chon[m][i][1]
             if not chu or not os.path.isfile(self._mau(g)):
                 continue
             a, b = cua_so[m][i]
-            nhom.setdefault(g, []).append([f"{m}_{i}", chu, round(max((b - a) / 44100, 0.5), 3)])
+            nhom.setdefault(g, []).append([f"{m}_{i}", td.doc_duoc(chu), round(max((b - a) / 44100, 0.5), 3)])
         viec_doc = [{"ten": g, "mau": self._mau(g), "ra": self._thu_wav(g),
                      "rms": 0.08, "ds": ds} for g, ds in sorted(nhom.items(), key=lambda x: -len(x[1]))]
         vj = os.path.join(lv, "tam", "rt_doc.json")

@@ -1,3 +1,9 @@
+## Dịch Game v6.16.0 – Lồng tiếng đọc được tên riêng
+
+- Tên riêng tiếng nước ngoài (Kliff, Oongka, Hernand, Pywel, Lara, Konstantin...) được phiên âm sang cách đọc tiếng Việt trước khi VieNeu đọc (Kliff → "Cờ líp", Hernand → "Hơ nan"). Phụ đề vẫn giữ tên gốc.
+- Có mã Claude: app nhờ Claude phiên âm toàn bộ tên riêng một lần (rất rẻ), lưu lại dùng mãi. Không có mạng: dùng quy tắc phiên âm tự động.
+- Áp dụng cho lồng tiếng Crimson Desert (Kliff, phần A, phần B) và Rise of the Tomb Raider.
+
 ## Dịch Game v6.15.0 – Crimson Desert: lồng tiếng bằng giọng bạn tự ghi âm
 
 - Lồng tiếng Crimson Desert (phần A nhân vật + phần B dân thường) dùng giọng bạn tự ghi âm trong thư mục DichGame_LongTieng\giong_rieng theo bảng phân bổ phan_bo.json (Kliff = giọng nam chính, Oongka = lính canh, Yann = nam phụ, Damian = nam già, Nairah = nữ chính, phù thủy = giọng phù thủy...).
