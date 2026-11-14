@@ -1,3 +1,8 @@
+## Dịch Game v6.19.2
+
+- Bảng điều khiển của app chỉ ẩn khỏi ảnh chụp / quay màn hình KHI ĐANG DỊCH MÀN HÌNH (Tự động bật, F12). Không dịch thì chụp màn hình, quay video, chia sẻ màn hình thấy app bình thường.
+- Khung bản dịch (chữ hiện đè lên game) vẫn luôn ẩn khỏi ảnh chụp để app không tự đọc lại bản dịch.
+
 ## Dịch Game v6.19.1
 
 - Sửa lỗi "Dò font của game" báo "'utf-8' codec can't encode… surrogates not allowed" lúc ghi báo cáo (gần xong).

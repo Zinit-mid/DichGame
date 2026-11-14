@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.19.1"
+APP_VERSION = "6.19.2"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -1896,7 +1896,7 @@ class App:
             self.root.geometry(f"+{int(vt[0])}+{int(vt[1])}")
         self.root.after(500, lambda: self.root.bind("<Configure>", self._ghi_kich_thuoc, add="+"))
         self._dang_ky_phim()
-        self.root.after(300, lambda: an_khoi_anh_chup(self.root))
+        self.root.after(300, self._cap_nhat_an_chup)
         threading.Thread(target=self._khoi_dong_offline, daemon=True).start()
         threading.Thread(target=self._vong_lap, daemon=True).start()
         for v in self._ds():
@@ -2796,10 +2796,27 @@ class App:
                 cv.create_text(w // 2 + dx, h // 2 + dy, text=chu, font=font, fill=tron(MAU_VIEN, dam))
         cv.create_text(w // 2, h // 2, text=chu, font=font, fill=tron(MAU_CHU, dam if phu_de else 1.0))
 
+    def _dat_an_chup(self, an):
+        """An bang dieu khien khoi anh chup man hinh CHI KHI dang dich man hinh (de app khong tu doc chinh no).
+        Khong dich thi chup man hinh / quay video thay app binh thuong."""
+        if an == getattr(self, "_dang_an_chup", None):
+            return
+        try:
+            ok = bool(user32.SetWindowDisplayAffinity(hwnd_cua(self.root), WDA_EXCLUDEFROMCAPTURE if an else 0))
+        except Exception:
+            ok = False
+        if ok:
+            self._dang_an_chup = an
+
+    def _cap_nhat_an_chup(self):
+        c = self.cfg
+        self._dat_an_chup(bool(c["tu_dong_dich"]) or self.toan_man_bat or self.mot_lan_hien)
+
     def _ve_den(self):
         """Den trang thai: xanh dang chay • vang dang ket noi / chua san sang • do dang dung."""
         c = self.cfg
         chay = bool(c["tu_dong_dich"]) or self.toan_man_bat
+        self._cap_nhat_an_chup()
         may = c.get("che_do_hoi_thoai", "offline_claude")
         ten_may = {"claude": "Claude AI", "offline_claude": "Offline + Claude", "offline": "Offline",
                    "google": "Google Dịch", "deepl": "DeepL"}.get(may, may)
@@ -3424,12 +3441,14 @@ class App:
             self._doi_khung(self.vung_dang_sua, ten)
         elif ten == "bat_tat_tu_dong":
             c["tu_dong_dich"] = not c["tu_dong_dich"]
+            self._cap_nhat_an_chup()
         elif ten == "dich_ngay":
             self.ep_dich.set()
         elif ten == "an_hien":
             self.hien_ban_dich = not self.hien_ban_dich
             self._ve_lai()
         elif ten == "dich_man_hinh":
+            self._dat_an_chup(True)          # an app truoc khi chup ca man hinh
             with self.khoa_tm:
                 self.doan_tm = []
             if c["toan_man_lien_tuc"]:
