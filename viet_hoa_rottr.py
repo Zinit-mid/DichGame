@@ -614,9 +614,11 @@ class ViecRottr(vcd.ViecDich):
             if giong:
                 fsb = list(x.fsb_kenh())
                 for c, p in giong.items():
-                    if c < len(fsb):
-                        with open(p, "rb") as f:
-                            fsb[c] = rm.tao_fsb4(f.read(), rm.fsb_thong_tin(fsb[c])[0], fsb[c])
+                    with open(p, "rb") as f:
+                        mp3 = f.read()
+                    for cc in (c, self.kenh_phai(self.mul[ma], c)):
+                        if cc is not None and cc < len(fsb):
+                            fsb[cc] = rm.tao_fsb4(mp3, rm.fsb_thong_tin(fsb[cc])[0], fsb[cc])
                 x.thay_am_thanh(fsb)
                 self.so_cai["giong"] += 1
             return x.ghi()
@@ -632,12 +634,23 @@ class ViecRottr(vcd.ViecDich):
     # ---------------------------------------------------------- long tieng (VieNeu)
     @staticmethod
     def la_kenh_giong(k, so_kenh):
-        """k = [loai, ten_fsb, so_mau]. File 1 kenh = loi thoai. Nhieu kenh: kenh mono '#group..' = giong 1 nhan vat;
-        cap trai/phai, nhac (music), tieng dong (sfx) khong phai giong."""
+        """k = [loai, ten_fsb, so_mau]. File 1 kenh = loi thoai. Nhieu kenh: kenh '#group..' / '_vo_' = giong
+        nhan vat (mono, hoac kenh TRAI cua cap trai/phai – kenh phai lay cung giong); nhac / tieng dong thi khong."""
         if so_kenh == 1:
             return True
         ten = (k[1] or "").lower()
-        return k[0] == 0 and "#group" in ten and "music" not in ten and "_mus" not in ten and "sfx" not in ten
+        if any(x in ten for x in ("music", "_mus", "musi", "sfx", "_amb", "ambien")):
+            return False
+        # ten FSB bi cat con 29 ky tu: "...#grou", "...#gr" -> chi can co "#"
+        return k[0] in (0, 1) and ("#" in ten or "_vo_" in ten or "_vo." in ten)
+
+    @staticmethod
+    def kenh_phai(t, c):
+        """Kenh phai di cap voi kenh trai c (cung ten) -> chi so, hoac None."""
+        kenh = t.get("kenh") or []
+        if c + 1 < len(kenh) and kenh[c][0] == 1 and kenh[c + 1][0] == 2 and kenh[c + 1][1] == kenh[c][1]:
+            return c + 1
+        return None
 
     def thu_muc_giong(self):
         return os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "RotTR")
@@ -770,8 +783,11 @@ class ViecRottr(vcd.ViecDich):
             raise LoiDung("không tìm thấy lời thoại nào trong game (bấm Quét lại)")
         thu_tu = sorted(tat_ca, key=lambda m: (self.thu_tu_game(tat_ca[m]["ten"]), m))
         if thu:
-            dau = [m for m in thu_tu if any(re.search(r"[A-Za-z]{2,}", self.THE.sub("", en))
-                                            for _, en in tat_ca[m]["pd"] if en)][:10]
+            co_chu = [m for m in thu_tu if any(re.search(r"[A-Za-z]{2,}", self.THE.sub("", en))
+                                               for _, en in tat_ca[m]["pd"] if en)]
+            mo_dau = ("iceclimb", "ice_climb", "lara_ledge_catch")      # doan leo nui tuyet dau game
+            dau = [m for m in co_chu if any(x in (tat_ca[m]["ten"] or "").lower() for x in mo_dau)]
+            dau = (dau + [m for m in co_chu if m not in dau])[:max(10, len(dau))][:16]
             self.dich_truoc([en for m in dau for _, en in tat_ca[m]["pd"] if en], may, khoa, 0.5, bao)
             if self.dung.is_set():
                 return None

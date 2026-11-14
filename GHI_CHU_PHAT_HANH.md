@@ -1,3 +1,8 @@
+## Dịch Game v6.13.1 – Tomb Raider
+
+- Gói "Lồng tiếng thử" giờ lấy đúng đoạn LEO NÚI TUYẾT đầu game (Jonah: "Wait till you see this view…", "Take my hand!", rơi khỏi vách băng...).
+- Nhận thêm giọng nằm ở kênh trái/phải và tên kênh bị cắt ngắn (75/79 đoạn hội thoại nhiều kênh lồng tiếng được).
+
 ## Dịch Game v6.13.0 – Tomb Raider: lồng tiếng cả hội thoại nhiều người
 
 - Lồng tiếng được cả các đoạn hội thoại nhiều nhân vật (ví dụ đoạn leo núi tuyết đầu game với Jonah): app tự tìm kênh giọng của từng nhân vật, chỉ thay giọng, giữ nguyên nhạc và tiếng động.
