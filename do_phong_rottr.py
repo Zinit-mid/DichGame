@@ -365,16 +365,11 @@ class DoPhong:
             if not ten.endswith(".000.tiger"):
                 continue
             try:
-                with open(p, "rb") as f:
-                    d = f.read(0x34)
-                    magic, ban, so_phan, so_tep, ma = struct.unpack_from("<5i", d, 0)
-                    if magic != 0x53464154 or ban != 4:
-                        continue
-                    bang = f.read(24 * so_tep)
-                for i in range(so_tep):
-                    bam, loc, co, _, phan, _, vt = struct.unpack_from("<IIIIhhI", bang, 24 * i)
-                    tp = ten if not phan else ten[:-len(".000.tiger")] + f".{phan:03d}.tiger"
-                    self.bang.setdefault(tp, []).append((vt, bam, loc, co))
+                import viet_hoa_tr as vtr
+                _, ds = vtr.doc_tiger(p)        # ho tro goi phien ban 3 (TR 2013), 4 (Rise), 5 (Shadow)
+                for m in ds:
+                    tp = ten if not m["phan"] else ten[:-len(".000.tiger")] + f".{m['phan']:03d}.tiger"
+                    self.bang.setdefault(tp, []).append((m["vt"], m["bam"], m["locale"], m["co"]))
             except Exception:
                 pass
         for v in self.bang.values():
@@ -384,11 +379,11 @@ class DoPhong:
         ds = getattr(self, "bang", {}).get(ten)
         if not ds:
             return ""
-        i = bisect.bisect_right(ds, (vt, 0xFFFFFFFF, 0xFFFFFFFF, 0)) - 1
+        i = bisect.bisect_right(ds, (vt, float("inf"))) - 1
         if i < 0:
             return ""
         v, bam, loc, co = ds[i]
-        return f"bam={bam:08X} locale={loc:08X} vt_muc={v} co={co} lech={vt - v}"
+        return f"bam={bam:X} locale={loc:X} vt_muc={v} co={co} lech={vt - v}"
 
     def chay(self):
         os.makedirs(os.path.join(self.ra, "mau"), exist_ok=True)
@@ -410,7 +405,7 @@ class DoPhong:
         return self.ghi_bao_cao(cac, time.time() - bat_dau)
 
     def ghi_bao_cao(self, cac, giay):
-        dong = ["BÁO CÁO DÒ FONT – Rise of the Tomb Raider", f"Thư mục game: {self.game}",
+        dong = [f"BÁO CÁO DÒ FONT – {os.path.basename(os.path.normpath(self.game))}", f"Thư mục game: {self.game}",
                 f"Số file .tiger: {len(cac)}  •  khối nén đã giải: {self.so_cdrm:,}  •  "
                 f"dữ liệu giải nén: {self.byte_giai / 2**30:.1f} GB  •  thời gian: {giay / 60:.1f} phút", ""]
         gfx = [k for k in self.ket_qua if k.get("loai") in ("GFX", "CFX", "FWS", "CWS")]

@@ -1,3 +1,12 @@
+## Dịch Game v6.19.0 – Việt hóa Tomb Raider (2013) và Shadow of the Tomb Raider
+
+- Thẻ Tomb Raider (2013) (cả bản Steam và Epic GOTY) và Shadow of the Tomb Raider giờ có nút "Việt hóa" như Rise: dịch toàn bộ chữ trong game (Claude / Offline), cài gói thử kiểm tra font, cài có dấu / không dấu, gỡ, dò font.
+- Tomb Raider 2013: app tạo lại gói patch2 (bản gốc được giữ thành bigfile._orig.patch2.000.tiger); Gỡ = trả lại bản gốc.
+- Shadow: tạo gói mod riêng, không sửa file gốc; Gỡ = xóa gói.
+- Mỗi game có trang công cụ riêng ở cột trái, mở cùng lúc không lẫn nhau. Bản dịch lưu riêng từng game.
+- Phụ đề phim và lồng tiếng: hiện vẫn chỉ có cho Rise.
+- "Dò font của game" đọc được gói của cả 3 game; kết quả ra Desktop\DoFont_TR2013 / DoFont_SotTR / DoFont_RotTR.
+
 ## Dịch Game v6.18.0 – Dò file chữ cho mọi game
 
 - Mỗi game trong Thư viện có nút mới "Dò file chữ": app dò đúng thư mục game đó, liệt kê file nào chứa chữ tiếng Anh (đường dẫn, loại file, số câu, câu mẫu) và có nút "Mở thư mục" để xem file.

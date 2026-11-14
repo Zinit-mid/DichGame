@@ -294,6 +294,59 @@ def la_rottr(g):
         os.path.join(g["thu_muc"], "ROTTR.exe"))
 
 
+def la_tr2013(g):
+    return (g["nguon"] == "steam" and str(g["ma"]) == "203160") or os.path.isfile(
+        os.path.join(g["thu_muc"], "TombRaider.exe"))
+
+
+def la_shadow(g):
+    return (g["nguon"] == "steam" and str(g["ma"]) == "750920") or os.path.isfile(
+        os.path.join(g["thu_muc"], "SOTTR.exe"))
+
+
+def loai_tr(g):
+    """Game Tomb Raider (engine Foundation) co cong cu Viet hoa: 'rise' | 'tr2013' | 'shadow' | None."""
+    if la_rottr(g):
+        return "rise"
+    if la_shadow(g):
+        return "shadow"
+    if la_tr2013(g):
+        return "tr2013"
+    return None
+
+
+TEN_TR = {"rise": "Rise of the Tomb Raider", "tr2013": "Tomb Raider (2013)", "shadow": "Shadow of the Tomb Raider"}
+NGAN_TR = {"rise": "RotTR", "tr2013": "TR2013", "shadow": "SotTR"}
+
+
+class _TrangTr:
+    """Moi trang / cua so Viet hoa Tomb Raider giu trang thai rieng (rt_*), con lai dung chung voi ThuVien."""
+    RIENG = ("rt_", "cua_so_rt", "loai_rt", "game_rt")
+
+    def __init__(self, goc, loai, g):
+        object.__setattr__(self, "_goc", goc)
+        self.loai_rt = loai
+        self.game_rt = g
+
+    def __getattr__(self, ten):
+        if ten.startswith(_TrangTr.RIENG):
+            raise AttributeError(ten)
+        import inspect
+        import types
+        goc = object.__getattribute__(self, "_goc")
+        if ten not in goc.__dict__:
+            ham = inspect.getattr_static(type(goc), ten, None)
+            if isinstance(ham, types.FunctionType):
+                return types.MethodType(ham, self)    # phuong thuc chay voi trang thai rieng cua trang nay
+        return getattr(goc, ten)
+
+    def __setattr__(self, ten, gia_tri):
+        if ten.startswith(_TrangTr.RIENG):
+            object.__setattr__(self, ten, gia_tri)
+        else:
+            setattr(object.__getattribute__(self, "_goc"), ten, gia_tri)
+
+
 def khoa_game(g):
     return f"{g['nguon']}:{g['ma']}"
 
@@ -1582,11 +1635,32 @@ class ThuVien(App):
         """Game co cong cu Viet hoa rieng: [(ma, ten, game)]."""
         kq = []
         for g in self.games:
-            if la_crimson(g) and not any(m == "cd" for m, _, _ in kq):
-                kq.append(("cd", "Crimson Desert", g))
-            elif la_rottr(g) and not any(m == "rt" for m, _, _ in kq):
-                kq.append(("rt", "Rise of the Tomb Raider", g))
+            ma = self.ma_cong_cu(g)
+            if ma and not any(m == ma for m, _, _ in kq):
+                kq.append((ma, self.ten_cong_cu(g), g))
         return kq
+
+    def ma_cong_cu(self, g):
+        """Ma trang cong cu Viet hoa rieng cua game (moi thu muc game 1 trang)."""
+        if la_crimson(g):
+            return "cd"
+        loai = loai_tr(g)
+        if loai == "rise":
+            return "rt"
+        if loai:
+            cung = [x for x in self.games if loai_tr(x) == loai]
+            i = next((i for i, x in enumerate(cung) if x["thu_muc"] == g["thu_muc"]), 0)
+            return {"tr2013": "tr13", "shadow": "sotr"}[loai] + (f"_{i + 1}" if i else "")
+        return None
+
+    def ten_cong_cu(self, g):
+        if la_crimson(g):
+            return "Crimson Desert"
+        loai = loai_tr(g)
+        ten = TEN_TR.get(loai, g["ten"])
+        if loai and sum(1 for x in self.games if loai_tr(x) == loai) > 1:
+            ten += f" ({TEN_NGUON.get(g['nguon'], g['nguon'])})"
+        return ten
 
     def _ve_danh_sach(self):
         tk = self.tk
@@ -1599,14 +1673,14 @@ class ThuVien(App):
         thu_tu = {"can_cai_lai": 0, "co_ban_moi": 1, "da_cai": 2, "co_viet_hoa": 3, "khac_phien_ban": 4,
                   "dang_kiem_tra": 5, "chua_ho_tro": 6}
         tim = self.bien_tim.get().strip().lower()
-        ds = sorted(self.games, key=lambda g: (0 if (la_crimson(g) or la_rottr(g)) else 1,
+        ds = sorted(self.games, key=lambda g: (0 if (la_crimson(g) or loai_tr(g)) else 1,
                                                thu_tu.get(self.trang.get(khoa_game(g), "dang_kiem_tra"), 9),
                                                g["ten"].lower()))
         hien = 0
         for g in ds:
             k = khoa_game(g)
             tt = self.trang.get(k, "dang_kiem_tra")
-            if self.bien_loc.get() and tt in ("chua_ho_tro", "dang_kiem_tra") and not (la_crimson(g) or la_rottr(g)):
+            if self.bien_loc.get() and tt in ("chua_ho_tro", "dang_kiem_tra") and not (la_crimson(g) or loai_tr(g)):
                 continue
             if tim and tim not in g["ten"].lower():
                 continue
@@ -1627,7 +1701,7 @@ class ThuVien(App):
         P = self.p
         bg = self.ql.ban_ghi(g)
         goi = tim_goi(self.danh_muc, g)
-        cd, rt = la_crimson(g), la_rottr(g)
+        cd, rt = la_crimson(g), bool(loai_tr(g))
         nen = UI_THE
         the = tk.Frame(self.ds, bg=nen, highlightthickness=1, highlightbackground="#26324f", padx=P(16),
                        pady=P(12))
@@ -1666,7 +1740,7 @@ class ThuVien(App):
             self._nut(nut, "Việt hóa", lambda: self.mo_cong_cu("cd", g), chinh=True, nho=True,
                       bieu_tuong="▶").pack(side="left", padx=(0, P(6)))
         elif rt:
-            self._nut(nut, "Việt hóa", lambda: self.mo_cong_cu("rt", g), chinh=True, nho=True,
+            self._nut(nut, "Việt hóa", lambda: self.mo_cong_cu(self.ma_cong_cu(g), g), chinh=True, nho=True,
                       bieu_tuong="▶").pack(side="left", padx=(0, P(6)))
         elif goi and tt in ("co_viet_hoa", "can_cai_lai", "co_ban_moi", "khac_phien_ban"):
             chu = {"co_viet_hoa": "Cài Việt hóa", "can_cai_lai": "Cài lại", "co_ban_moi": "Cập nhật",
@@ -1685,8 +1759,14 @@ class ThuVien(App):
 
     def _chu_trang_thai(self, g, tt):
         bg = self.ql.ban_ghi(g)
-        if la_rottr(g) and tt in ("chua_ho_tro", "dang_kiem_tra"):
-            if os.path.isfile(os.path.join(g["thu_muc"], "bigfile._mod.viethoa_dichgame.000_ENGLISH.000.tiger")):
+        loai = loai_tr(g)
+        if loai and tt in ("chua_ho_tro", "dang_kiem_tra"):
+            if loai == "rise":
+                da = os.path.isfile(os.path.join(g["thu_muc"], "bigfile._mod.viethoa_dichgame.000_ENGLISH.000.tiger"))
+            else:
+                import viet_hoa_tr as vtr
+                da = vtr.da_cai_nhanh(g["thu_muc"], loai)
+            if da:
                 return "Đã cài Việt hóa", UI_XANH
             return "Công cụ Việt hóa riêng", UI_VANG
         if la_crimson(g) and tt in ("chua_ho_tro", "dang_kiem_tra"):
@@ -1718,8 +1798,18 @@ class ThuVien(App):
 
     # ---------- Viet hoa Rise of the Tomb Raider
     def mo_rottr(self, g, cha=None):
+        if not isinstance(self, _TrangTr):
+            # moi game / trang co trang thai rieng (Rise, TR 2013, Shadow mo cung luc khong lan nhau)
+            kho = self.__dict__.setdefault("_trang_tr", {})
+            k = (os.path.normcase(g["thu_muc"]), cha is not None)
+            tr = kho.get(k)
+            if tr is None or cha is not None:
+                tr = kho[k] = _TrangTr(self, loai_tr(g) or "rise", g)
+            return ThuVien.mo_rottr(tr, g, cha)
         import viet_hoa_cd as vcd
         import viet_hoa_rottr as vrt
+        loai = self.loai_rt
+        ten_game = TEN_TR.get(loai, g["ten"])
         tk = self.tk
         cu = getattr(self, "cua_so_rt", None)
         if cha is None and cu is not None:
@@ -1734,7 +1824,7 @@ class ThuVien(App):
         else:
             w = tk.Toplevel(self.root)
             self.cua_so_rt = w
-            w.title("Việt hóa Rise of the Tomb Raider")
+            w.title(f"Việt hóa {ten_game}")
             w.configure(bg=UI_NEN, padx=18, pady=14)
             w.geometry("760x700")
 
@@ -1747,9 +1837,12 @@ class ThuVien(App):
         nhan = lambda chu, mau=UI_CHU, co=10, dam=False: tu_xuong_dong(tk.Label(
             w, text=chu, bg=UI_NEN, fg=mau, font=ft(co, "bold" if dam else "normal"),
             anchor="w", justify="left", wraplength=630), w)
-        nhan("Việt hóa Rise of the Tomb Raider", co=13, dam=True).pack(fill="x")
-        nhan("• App đọc chữ tiếng Anh của game (locals.bin trong các gói .tiger), dịch, rồi tạo MỘT GÓI MỚI "
-             "trong thư mục game – không sửa file gốc nào. Gỡ = xóa gói đó.\n"
+        nhan(f"Việt hóa {ten_game}", co=13, dam=True).pack(fill="x")
+        nhan((("• App đọc chữ tiếng Anh của game (locals.bin trong các gói .tiger), dịch, rồi tạo lại gói patch2 "
+              "(bản gốc được giữ thành bigfile._orig.patch2.000.tiger). Gỡ = trả lại patch2 gốc.\n")
+             if loai == "tr2013" else
+             ("• App đọc chữ tiếng Anh của game (locals.bin trong các gói .tiger), dịch, rồi tạo MỘT GÓI MỚI "
+              "trong thư mục game – không sửa file gốc nào. Gỡ = xóa gói đó.\n")) +
              "• Giữ nguyên tiếng Anh: tên người, địa danh, tổ chức. Câu đã dịch được lưu lại, lần sau chỉ dịch câu mới.\n"
              "• Trong game để ngôn ngữ English. TẮT GAME trước khi cài / gỡ.", UI_PHU, 9).pack(fill="x", pady=(6, 8))
 
@@ -1804,32 +1897,37 @@ class ThuVien(App):
         self._nut(hang3, "Cài Việt hóa (không dấu)", lambda: self._rt_cai(False, True)).pack(side="left", padx=6)
         self._nut(hang3, "Gỡ Việt hóa", self._rt_go).pack(side="left")
         self._nut(hang3, "Dò font của game", self._rt_do_font, nho=True).pack(side="left", padx=6)
-        tk.Label(w, text="BƯỚC 4 – LỒNG TIẾNG VIỆT (cần app VieNeu bản GPU)", bg=UI_NEN, fg=UI_VANG,
-                 font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
-        nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
-             "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
-             "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game (app tự dịch trước) → bấm Cài Việt hóa → vào game nghe thử. "
-             "Chạy lại = làm tiếp.",
-             UI_PHU, 9).pack(fill="x")
-        self.rt_lt = nhan("", UI_CHU, 10)
-        self.rt_lt.pack(fill="x", pady=(4, 0))
-        hang_am = tk.Frame(w, bg=UI_NEN)
-        hang_am.pack(fill="x", pady=(6, 0))
-        tk.Label(hang_am, text="Độ to giọng Việt:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
-        self.rt_am = float(self.cfg.get("rt_am", 4.0))
-        self.rt_nut_am = {}
-        for v, chu in ((0.0, "Như gốc"), (4.0, "To, chắc (+4 dB)"), (8.0, "Rất to (+8 dB)")):
-            b = self._nut(hang_am, chu, lambda v=v: self._rt_chon_am(v), nho=True)
-            b.pack(side="left", padx=2)
-            self.rt_nut_am[v] = b
-        self._rt_chon_am(self.rt_am)
-        hang4 = tk.Frame(w, bg=UI_NEN)
-        hang4.pack(fill="x", pady=(6, 4))
-        self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu đầu game)", lambda: self._rt_long_tieng(True), chinh=True)
-        self.rt_nut_lt.pack(side="left")
-        self._nut(hang4, "Lồng tiếng tất cả", lambda: self._rt_long_tieng(False)).pack(side="left", padx=6)
-        self._nut(hang4, "Tạm dừng", self._rt_dung).pack(side="left")
-        self._nut(hang4, "Xóa giọng đã tạo", self._rt_xoa_giong, nho=True).pack(side="left", padx=6)
+        if loai != "rise":
+            nhan("• Phụ đề phim và lồng tiếng: hiện chỉ có cho Rise of the Tomb Raider. Với game này app Việt hóa "
+                 "toàn bộ chữ trong game (menu, nhật ký, hướng dẫn, phụ đề nằm trong file chữ).", UI_PHU, 9).pack(
+                fill="x", pady=(12, 0))
+        else:
+            tk.Label(w, text="BƯỚC 4 – LỒNG TIẾNG VIỆT (cần app VieNeu bản GPU)", bg=UI_NEN, fg=UI_VANG,
+                     font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
+            nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
+                 "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
+                 "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game (app tự dịch trước) → bấm Cài Việt hóa → vào game nghe thử. "
+                 "Chạy lại = làm tiếp.",
+                 UI_PHU, 9).pack(fill="x")
+            self.rt_lt = nhan("", UI_CHU, 10)
+            self.rt_lt.pack(fill="x", pady=(4, 0))
+            hang_am = tk.Frame(w, bg=UI_NEN)
+            hang_am.pack(fill="x", pady=(6, 0))
+            tk.Label(hang_am, text="Độ to giọng Việt:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
+            self.rt_am = float(self.cfg.get("rt_am", 4.0))
+            self.rt_nut_am = {}
+            for v, chu in ((0.0, "Như gốc"), (4.0, "To, chắc (+4 dB)"), (8.0, "Rất to (+8 dB)")):
+                b = self._nut(hang_am, chu, lambda v=v: self._rt_chon_am(v), nho=True)
+                b.pack(side="left", padx=2)
+                self.rt_nut_am[v] = b
+            self._rt_chon_am(self.rt_am)
+            hang4 = tk.Frame(w, bg=UI_NEN)
+            hang4.pack(fill="x", pady=(6, 4))
+            self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu đầu game)", lambda: self._rt_long_tieng(True), chinh=True)
+            self.rt_nut_lt.pack(side="left")
+            self._nut(hang4, "Lồng tiếng tất cả", lambda: self._rt_long_tieng(False)).pack(side="left", padx=6)
+            self._nut(hang4, "Tạm dừng", self._rt_dung).pack(side="left")
+            self._nut(hang4, "Xóa giọng đã tạo", self._rt_xoa_giong, nho=True).pack(side="left", padx=6)
         self.rt_tien_do = nhan("", UI_VANG, 10)
         self.rt_tien_do.pack(fill="x", pady=(8, 0))
         self.rt_viec = None
@@ -1839,7 +1937,12 @@ class ThuVien(App):
 
         def nap():
             try:
-                viec = vrt.ViecRottr(g["thu_muc"]).nap(
+                if loai == "rise":
+                    viec = vrt.ViecRottr(g["thu_muc"])
+                else:
+                    import viet_hoa_tr as vtr
+                    viec = vtr.ViecTr(g["thu_muc"], loai)
+                viec = viec.nap(
                     lambda s: self.q.put(("goi", lambda s=s: self.rt_tk.config(
                         text=s + "\n(lần đầu đọc phụ đề phim có thể mất 1–3 phút)", fg=UI_CHU))))
                 self.q.put(("goi", lambda: self._rt_da_nap(viec)))
@@ -1883,7 +1986,7 @@ class ThuVien(App):
                     + ("" if vcd.doc_khoa_claude() else
                        "\n⚠ Chưa có mã Claude: bấm Cài đặt → Claude AI, dán mã rồi bấm Lưu mã."))
         trang = "\nĐang cài trong game: " + ("CÓ gói Việt hóa ✓" if viec.da_cai() else "chưa")
-        self.rt_tk.config(fg=UI_CHU, text=(dau + duoi + trang).replace(",", "."))
+        self.rt_tk.config(fg=UI_CHU, text=dau.replace(",", ".") + duoi.replace(f"{usd * 26000:,.0f}", f"{usd * 26000:,.0f}".replace(",", ".")) + trang)
         try:
             m = viec.thong_ke_mul()
             chu = (f"Phụ đề phim / lời thoại: {m['cau']:,} câu, đã dịch {m['da_dich']:,} (đã gộp trong bước Dịch ở trên)\n"
@@ -1968,8 +2071,11 @@ class ThuVien(App):
                            f"có hiện đúng không? Chụp màn hình gửi Claude.")
                 else:
                     sc = getattr(viec, "so_cai", {})
-                    chu = (f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ, {sc.get('phu_de', 0):,} câu phụ đề phim, "
-                           f"{sc.get('giong', 0):,} đoạn lồng tiếng ✓ Mở game để chơi.").replace(",", ".")
+                    if getattr(self, "loai_rt", "rise") == "rise":
+                        chu = (f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ – {sc.get('phu_de', 0):,} câu phụ đề phim – "
+                               f"{sc.get('giong', 0):,} đoạn lồng tiếng ✓ Mở game để chơi.").replace(",", ".")
+                    else:
+                        chu = f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ ✓ Mở game để chơi.".replace(",", ".")
                 mau = UI_XANH
             except Exception as e:
                 chu, mau = f"Không cài được: {_loi_quyen(e)}", UI_LOI
@@ -2039,7 +2145,8 @@ class ThuVien(App):
         viec = self.rt_viec
         viec.dung.clear()
         self.rt_dang_chay = True
-        ra = os.path.join(thu_muc_desktop(), "DoFont_RotTR")
+        ten_ra = "DoFont_" + NGAN_TR.get(getattr(self, "loai_rt", "rise"), "RotTR")
+        ra = os.path.join(thu_muc_desktop(), ten_ra)
         self.rt_tien_do.config(text="Đang dò font (khoảng 5–15 phút, bấm Tạm dừng để ngừng)...", fg=UI_VANG)
 
         def bao(s):
@@ -2054,9 +2161,9 @@ class ThuVien(App):
                 kq = dp.DoPhong(viec.thu_muc_game, ra, bao, viec.dung).chay()
                 gui = os.path.basename(kq["zip"]) if kq.get("zip") else "bao_cao_font.txt"
                 chu = (f"Dò font xong ✓ Tìm thấy {kq['ttf']} font TrueType, {kq['gfx']} file Scaleform "
-                       f"({kq['font']} font bên trong).\nGửi file Desktop\\DoFont_RotTR\\{gui} cho Claude.")
+                       f"({kq['font']} font bên trong).\nGửi file Desktop\\{ten_ra}\\{gui} cho Claude.")
                 if viec.dung.is_set():
-                    chu = "Đã dừng dò font (báo cáo phần đã dò nằm ở Desktop\\DoFont_RotTR)."
+                    chu = f"Đã dừng dò font (báo cáo phần đã dò nằm ở Desktop\\{ten_ra})."
                 mau = UI_XANH
             except Exception as e:
                 chu, mau = f"Lỗi dò font: {e}", UI_LOI
