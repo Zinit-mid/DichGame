@@ -1,3 +1,8 @@
+## Dịch Game v6.15.0 – Crimson Desert: lồng tiếng bằng giọng bạn tự ghi âm
+
+- Lồng tiếng Crimson Desert (phần A nhân vật + phần B dân thường) dùng giọng bạn tự ghi âm trong thư mục DichGame_LongTieng\giong_rieng theo bảng phân bổ phan_bo.json (Kliff = giọng nam chính, Oongka = lính canh, Yann = nam phụ, Damian = nam già, Nairah = nữ chính, phù thủy = giọng phù thủy...).
+- Nhân vật nào đổi giọng thì app tự xóa câu đã đọc bằng giọng cũ và đọc lại; nhân vật không đổi giữ nguyên.
+
 ## Dịch Game v6.14.1
 
 - Tomb Raider: giữ máy không ngủ trong lúc dịch và lồng tiếng (chạy qua đêm được).

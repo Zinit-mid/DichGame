@@ -1178,6 +1178,44 @@ class ViecDich:
             shutil.rmtree(tam, ignore_errors=True)
         return co
 
+    @staticmethod
+    def _dung_giong_rieng(thu_muc_lv, phan, g, thu, cau):
+        """Giong nguoi dung tu ghi am: <thu_muc_lv>\\giong_rieng\\phan_bo.json {"A": {giong: file.wav}, "B": {...}}.
+        Neu giong nay duoc gan file rieng (hoac file doi) -> dung lam mau.wav, xoa cau da doc + .wem cu de lam lai."""
+        import glob
+        import hashlib
+        import shutil
+        goc = os.path.join(thu_muc_lv, "giong_rieng")
+        try:
+            with open(os.path.join(goc, "phan_bo.json"), encoding="utf-8") as f:
+                ten = json.load(f).get(phan, {}).get(g)
+        except Exception:
+            return
+        if ten and not ten.lower().endswith(".wav"):
+            ten += ".wav"
+        if not ten or not os.path.isfile(os.path.join(goc, ten)):
+            return
+        nguon = os.path.join(goc, ten)
+        with open(nguon, "rb") as f:
+            dau = hashlib.md5(f.read()).hexdigest() + " " + ten
+        ghi = os.path.join(thu, "_giong_rieng.txt")
+        try:
+            with open(ghi, encoding="utf-8") as f:
+                if f.read().strip() == dau:
+                    return
+        except Exception:
+            pass
+        shutil.rmtree(os.path.join(thu, "wav"), ignore_errors=True)
+        for th in glob.glob(os.path.join(thu_muc_lv, phan, "_wem_*db")):
+            for c in cau:
+                try:
+                    os.remove(os.path.join(th, c["ten"] + ".wem"))
+                except OSError:
+                    pass
+        shutil.copyfile(nguon, os.path.join(thu, "mau.wav"))
+        with open(ghi, "w", encoding="utf-8") as f:
+            f.write(dau)
+
     def long_tieng_phan(self, phan, thu_muc_lv, duong_dan_zip, wwise, bao=lambda s: None, tang_db=6.0):
         """Ca quy trinh cho phan A/B: ke hoach -> giong mau tung nguoi -> VieNeu -> Wwise -> zip DMM.
         Chay lai thi lam tiep cho do. -> dict thong ke, None neu bi tam dung."""
@@ -1205,6 +1243,7 @@ class ViecDich:
             bao(f"Bước 2/4: tạo giọng mẫu {i}/{len(can)}: {g}")
             thu = os.path.join(thu_muc_lv, phan, g)
             os.makedirs(thu, exist_ok=True)
+            self._dung_giong_rieng(thu_muc_lv, phan, g, thu, nhom[g])
             mau = self.tao_mau_nhom(nhom[g], thu, vgm)
             if not mau:
                 thieu_mau.append(g)
