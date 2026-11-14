@@ -1811,6 +1811,16 @@ class ThuVien(App):
              UI_PHU, 9).pack(fill="x")
         self.rt_lt = nhan("", UI_CHU, 10)
         self.rt_lt.pack(fill="x", pady=(4, 0))
+        hang_am = tk.Frame(w, bg=UI_NEN)
+        hang_am.pack(fill="x", pady=(6, 0))
+        tk.Label(hang_am, text="Độ to giọng Việt:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 8))
+        self.rt_am = float(self.cfg.get("rt_am", 4.0))
+        self.rt_nut_am = {}
+        for v, chu in ((0.0, "Như gốc"), (4.0, "To, chắc (+4 dB)"), (8.0, "Rất to (+8 dB)")):
+            b = self._nut(hang_am, chu, lambda v=v: self._rt_chon_am(v), nho=True)
+            b.pack(side="left", padx=2)
+            self.rt_nut_am[v] = b
+        self._rt_chon_am(self.rt_am)
         hang4 = tk.Frame(w, bg=UI_NEN)
         hang4.pack(fill="x", pady=(6, 4))
         self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu đầu game)", lambda: self._rt_long_tieng(True), chinh=True)
@@ -1977,7 +1987,7 @@ class ThuVien(App):
             mau = UI_XANH
             try:
                 kq = viec.long_tieng(thu=thu, bao=bao, tien_do=tien_do, may=self.rt_may,
-                                     khoa=vcd.doc_khoa_claude())
+                                     khoa=vcd.doc_khoa_claude(), tang_db=self.rt_am)
                 if kq is None:
                     chu, mau = "Đã tạm dừng – bấm lại để làm tiếp.", UI_VANG
                 elif thu:
@@ -1992,6 +2002,14 @@ class ThuVien(App):
                                         self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu đầu game)"),
                                         self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
         threading.Thread(target=chay, daemon=True).start()
+
+    def _rt_chon_am(self, v):
+        self.rt_am = v
+        self.cfg["rt_am"] = v
+        ghi_json(FILE_CAU_HINH, self.cfg)
+        for k, b in self.rt_nut_am.items():
+            b.config(bg=UI_DO if k == v else UI_O)
+            b.bind("<Leave>", lambda e, b=b, k=k: b.config(bg=UI_DO if k == self.rt_am else UI_O))
 
     def _rt_xoa_giong(self):
         if self.rt_viec is None or self.rt_dang_chay:

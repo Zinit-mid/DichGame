@@ -1,3 +1,10 @@
+## Dịch Game v6.14.0 – Tomb Raider: giọng Lara mạnh mẽ hơn
+
+- Giọng mẫu mới: app tự nghe khoảng 24 câu của mỗi nhân vật và chọn 3 câu nói TO, DỨT KHOÁT nhất (ưu tiên câu có dấu "!"), bỏ câu thì thầm / lẩm bẩm.
+- Giọng Việt đậm và rõ hơn: bỏ âm trầm đục, tăng nhẹ dải rõ chữ, nén đỉnh để to mà không vỡ tiếng.
+- Thêm chọn "Độ to giọng Việt": Như gốc / To, chắc (+4 dB, mặc định) / Rất to (+8 dB).
+- Giọng mẫu và câu đọc được làm lại từ đầu với cách chọn mới (giọng cũ không dùng nữa).
+
 ## Dịch Game v6.13.1 – Tomb Raider
 
 - Gói "Lồng tiếng thử" giờ lấy đúng đoạn LEO NÚI TUYẾT đầu game (Jonah: "Wait till you see this view…", "Take my hand!", rơi khỏi vách băng...).
