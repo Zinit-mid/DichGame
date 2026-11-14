@@ -1,3 +1,9 @@
+## Dịch Game v6.13.0 – Tomb Raider: lồng tiếng cả hội thoại nhiều người
+
+- Lồng tiếng được cả các đoạn hội thoại nhiều nhân vật (ví dụ đoạn leo núi tuyết đầu game với Jonah): app tự tìm kênh giọng của từng nhân vật, chỉ thay giọng, giữ nguyên nhạc và tiếng động.
+- Gói thử "10 câu đầu game" giờ bắt đầu từ đoạn leo núi tuyết.
+- Lần đầu mở trang Tomb Raider sau khi cập nhật, app quét lại lời thoại (1–3 phút).
+
 ## Dịch Game v6.12.0 – Tomb Raider
 
 - Sửa chữ có dấu ra ô vuông: font game chỉ có À Á Ì Í Ù…, thiếu Ế Ụ Ọ Ớ Ử Đ. Giờ "Cài Việt hóa (có dấu)" tự ghép chữ cái + dấu rời cho các chữ font thiếu, Đ thành D.

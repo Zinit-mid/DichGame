@@ -24,7 +24,7 @@ import rottr_mul as rm
 THU_MUC_RT = os.path.join(vcd.DU_LIEU, "rottr")
 FILE_BO_NHO = os.path.join(THU_MUC_RT, "bo_nho_dich.json")
 FILE_MUL = os.path.join(THU_MUC_RT, "muc_luc_mul.json")      # muc luc file .mul (phu de + giong) da quet
-PHIEN_BAN_MUL = 1
+PHIEN_BAN_MUL = 2
 
 TEN_LOCALS = "pcx64-w\\local\\locals.bin"
 LOCALE_EN = 0xFFFF0001
@@ -482,11 +482,19 @@ class ViecRottr(vcd.ViecDich):
                 continue
             tt = {"goi": os.path.basename(p), "muc": muc, "k": x.so_kenh, "phim": x.co_phim, "pd": pd,
                   "ten": "", "mau": 0}
-            if x.so_kenh == 1:
-                try:
-                    tt["ten"], tt["mau"], _ = rm.fsb_thong_tin(x.fsb_kenh()[0])
-                except Exception:
-                    pass
+            try:
+                loai = list(x.hdr[-1][:x.so_kenh])
+                kenh = []
+                for c, f in enumerate(x.fsb_kenh()):
+                    ten, so, _ = rm.fsb_thong_tin(f)
+                    kenh.append([loai[c], ten, so])
+                tt["kenh"] = kenh
+                tt["ten"], tt["mau"] = kenh[0][1], kenh[0][2]
+                giong = [k for k in kenh if self.la_kenh_giong(k, x.so_kenh)]
+                if giong:
+                    tt["ten"], tt["mau"] = giong[0][1], max(k[2] for k in giong)
+            except Exception:
+                pass
             kq[f"{bam:08x}"] = tt
         os.makedirs(THU_MUC_RT, exist_ok=True)
         with open(FILE_MUL + ".tam", "w", encoding="utf-8") as f:
@@ -519,6 +527,7 @@ class ViecRottr(vcd.ViecDich):
     def chu_de_doc(vi):
         """Bo the [..] / <..> / *tieng cuoi* de VieNeu doc."""
         t = re.sub(r"\[[^\[\]]*\]|<[^<>]*>|\{[^{}]*\}|\*[^*]*\*", " ", vi)
+        t = re.sub(r"^\s*[A-ZÀ-Ỹ][\wÀ-ỹ.'\- ]{0,24}:\s+", "", t)          # "Lara:  ..." -> bo ten nguoi noi
         t = re.sub(r"\s+", " ", t).strip(" -–")
         return t if re.search(r"[A-Za-zÀ-ỹ]{2,}", t) else ""
 
@@ -570,8 +579,6 @@ class ViecRottr(vcd.ViecDich):
             if vi:
                 moi[i] = vi
                 doi += 1
-        if not doi:
-            raise LoiDung("chưa có câu nào được dịch – bấm Dịch trước")
         tt = self.tt
         ma = tt["id_max"] + 1
         du_lieu = ghi_locals(lang, khoa, moi, n)
@@ -583,6 +590,8 @@ class ViecRottr(vcd.ViecDich):
                 if giong or any(self.chuoi_viet(en, khong_dau) for _, en in t["pd"] if en):
                     cac.append((int(m, 16), t["muc"]["locale"],
                                 lambda m=m, giong=giong: self._mul_moi(m, khong_dau, giong)))
+        if not doi and len(cac) == 1:
+            raise LoiDung("chưa có câu nào được dịch – bấm Dịch trước")
         tam = os.path.join(self.thu_muc_game, TEP_TIGER + ".moi")
         tao_tiger_lon(tam, ma, cac, bao)
         self.go()
@@ -602,11 +611,13 @@ class ViecRottr(vcd.ViecDich):
                     if d.get("14") == en:
                         d["14"] = vi
                     self.so_cai["phu_de"] += 1
-            if giong and x.so_kenh == 1:
-                fsb = x.fsb_kenh()[0]
-                with open(giong, "rb") as f:
-                    moi = rm.tao_fsb4(f.read(), rm.fsb_thong_tin(fsb)[0], fsb)
-                x.thay_am_thanh([moi])
+            if giong:
+                fsb = list(x.fsb_kenh())
+                for c, p in giong.items():
+                    if c < len(fsb):
+                        with open(p, "rb") as f:
+                            fsb[c] = rm.tao_fsb4(f.read(), rm.fsb_thong_tin(fsb[c])[0], fsb[c])
+                x.thay_am_thanh(fsb)
                 self.so_cai["giong"] += 1
             return x.ghi()
         except Exception:
@@ -619,39 +630,69 @@ class ViecRottr(vcd.ViecDich):
                 os.remove(p)
 
     # ---------------------------------------------------------- long tieng (VieNeu)
+    @staticmethod
+    def la_kenh_giong(k, so_kenh):
+        """k = [loai, ten_fsb, so_mau]. File 1 kenh = loi thoai. Nhieu kenh: kenh mono '#group..' = giong 1 nhan vat;
+        cap trai/phai, nhac (music), tieng dong (sfx) khong phai giong."""
+        if so_kenh == 1:
+            return True
+        ten = (k[1] or "").lower()
+        return k[0] == 0 and "#group" in ten and "music" not in ten and "_mus" not in ten and "sfx" not in ten
+
     def thu_muc_giong(self):
         return os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "RotTR")
 
+    def _ten_mp3(self, ma, c):
+        t = self.mul.get(ma, {})
+        return os.path.join(self.thu_muc_giong(), "mp3", ma + (".mp3" if t.get("k", 1) == 1 else f"_{c}.mp3"))
+
     def file_giong(self, ma):
-        p = os.path.join(self.thu_muc_giong(), "mp3", ma + ".mp3")
-        return p if os.path.isfile(p) else None
+        """-> {kenh: duong_dan_mp3} cac kenh da long tieng cua 1 file .mul ({} neu chua)."""
+        t = self.mul.get(ma)
+        if not t:
+            return {}
+        ra = {}
+        for c in range(t.get("k", 1)):
+            p = self._ten_mp3(ma, c)
+            if os.path.isfile(p):
+                ra[c] = p
+        return ra
 
     def mul_long_tieng_duoc(self):
-        """File .mul long tieng duoc: 1 kenh (loi thoai trong luc choi), khong phai doan phim nhieu kenh."""
-        return {m: t for m, t in self.mul.items() if t["k"] == 1 and not t["phim"] and t["mau"] > 0}
+        ra = {}
+        for m, t in self.mul.items():
+            if t.get("phim") or not t.get("kenh"):
+                continue
+            kg = [c for c, k in enumerate(t["kenh"]) if self.la_kenh_giong(k, t["k"])]
+            if kg:
+                ra[m] = dict(t, kg=kg)
+        return ra
 
     def thong_ke_mul(self):
         cau = [en for t in self.mul.values() for _, en in t["pd"] if en]
         long = self.mul_long_tieng_duoc()
         return {"file": len(self.mul), "cau": len(cau), "da_dich": sum(1 for en in cau if self.chuoi_viet(en)),
-                "phim": sum(1 for t in self.mul.values() if t["k"] > 1 or t["phim"]),
+                "phim": sum(1 for t in self.mul.values() if t["k"] > 1),
                 "giong": len(long), "da_long": sum(1 for m in long if self.file_giong(m))}
 
+    TEN_NOI = re.compile(r"^\s*(?:\[[^\]]*\]\s*)*([A-Z][A-Za-z.'\- ]{1,24}):\s")
+
     def _cau_doc(self, t):
-        """-> [(khung, chu_viet_de_doc | '')] cho 1 file .mul (bo cac khung xoa phu de – chu rong)."""
+        """-> [(khung, chu_viet_de_doc | '', ten_nguoi_noi_tieng_anh | None)] (bo khung xoa phu de)."""
         ra = []
         for khung, en in t["pd"]:
             if not en:
                 continue
             vi = self.chuoi_viet(en, goc=True)
-            ra.append((khung, self.chu_de_doc(vi) if vi else ""))
+            m = self.TEN_NOI.match(en)
+            ra.append((khung, self.chu_de_doc(vi) if vi else "", m.group(1).strip().lower().replace(" ", "_") if m else None))
         return ra
 
-    def _xuat_mp3_goc(self, ma, thu):
-        p = os.path.join(thu, ma + ".mp3")
+    def _xuat_mp3_goc(self, ma, c, thu):
+        p = os.path.join(thu, f"{ma}_{c}.mp3")
         if not os.path.isfile(p):
             x = self.doc_mul(ma)
-            _, _, d = rm.fsb_thong_tin(x.fsb_kenh()[0])
+            _, _, d = rm.fsb_thong_tin(x.fsb_kenh()[c])
             with open(p + ".tam", "wb") as f:
                 f.write(b"".join(rm.mp3_khung(d)))
             os.replace(p + ".tam", p)
@@ -694,7 +735,7 @@ class ViecRottr(vcd.ViecDich):
     @staticmethod
     def thu_tu_game(ten_fsb):
         """'100_bp_115_090_lara.str_0' -> khoa xep theo tien trinh game (so dau ten = khu vuc / man)."""
-        t = ten_fsb.split(".")[0].split("#")[0].split("_")
+        t = (ten_fsb or "").split(".")[0].split("#")[0].split("_")
         return tuple((0, int(x), "") if x.isdigit() else (1, 0, x) for x in t)
 
     def dich_truoc(self, cac_cau, may="claude", khoa=None, gioi_han=0.5, bao=lambda s: None):
@@ -715,32 +756,31 @@ class ViecRottr(vcd.ViecDich):
             self.chi_cau = None
 
     def long_tieng(self, thu=False, bao=lambda s: None, tien_do=lambda a, b, s: None, may="claude", khoa=None):
-        """thu=True: 10 doan thoai DAU GAME (tu dich truoc neu chua dich) de nghe thu. Chay lai = lam tiep.
+        """thu=True: 10 doan thoai DAU GAME (tu dich truoc) de nghe thu. Chay lai = lam tiep.
         -> dict thong ke, None neu bi dung."""
         vn = vcd.ViecDich.tim_vieneu()
         if not vn:
             raise LoiDung("không tìm thấy app VieNeu (bản tăng tốc GPU) – mở VieNeu, cài 'GPU' rồi thử lại")
         py, hf, gpu = vn
         lv = self.thu_muc_giong()
-        for t in ("goc", "mau", "wav", "mp3"):
+        for t in ("goc", "mau", "wav", "mp3", "tam"):
             os.makedirs(os.path.join(lv, t), exist_ok=True)
         tat_ca = self.mul_long_tieng_duoc()
         if not tat_ca:
-            raise LoiDung("không tìm thấy lời thoại nào trong game (thử bấm Quét lại)")
+            raise LoiDung("không tìm thấy lời thoại nào trong game (bấm Quét lại)")
+        thu_tu = sorted(tat_ca, key=lambda m: (self.thu_tu_game(tat_ca[m]["ten"]), m))
         if thu:
-            dau = [m for m, t in sorted(tat_ca.items(), key=lambda x: (self.thu_tu_game(x[1]["ten"]), x[0]))
-                   if 1.0 < t["mau"] / 44100 < 12 and any(re.search(r"[A-Za-z]{2,}", self.THE.sub("", en))
-                                                           for _, en in t["pd"] if en)][:10]
+            dau = [m for m in thu_tu if any(re.search(r"[A-Za-z]{2,}", self.THE.sub("", en))
+                                            for _, en in tat_ca[m]["pd"] if en)][:10]
             self.dich_truoc([en for m in dau for _, en in tat_ca[m]["pd"] if en], may, khoa, 0.5, bao)
             if self.dung.is_set():
                 return None
             self.luu()
+            thu_tu = dau
         chon = {}
-        for m, t in sorted(tat_ca.items(), key=lambda x: (self.thu_tu_game(x[1]["ten"]), x[0])):
-            if thu and m not in dau:
-                continue
-            cau = self._cau_doc(t)
-            if not any(c for _, c in cau):
+        for m in thu_tu:
+            cau = self._cau_doc(tat_ca[m])
+            if not any(x[1] for x in cau):
                 continue
             if not thu and self.file_giong(m):
                 continue
@@ -748,68 +788,120 @@ class ViecRottr(vcd.ViecDich):
         if not chon:
             if thu:
                 raise LoiDung("không dịch được câu thoại đầu game – kiểm tra mã Claude / máy dịch")
-            return {"file": 0, "da_co": sum(1 for m in tat_ca if self.file_giong(m))}
-        # 1. giong mau tung nguoi noi (lay 3 cau goc 2.5-10 giay)
-        nguoi = {}
+            return {"file": 0, "da_co": sum(1 for m in tat_ca if self.file_giong(m)), "tong": len(tat_ca)}
+        goc_dir = os.path.join(lv, "goc")
+
+        # 1. cua so thoi gian tung cau + xac dinh cau nao nam o kenh giong nao
+        cua_so = {}
+        for m, cau in chon.items():
+            het = tat_ca[m]["mau"]
+            ds = []
+            for i, (khung, _, _) in enumerate(cau):
+                a = int(khung / 30 * 44100)
+                b = int(cau[i + 1][0] / 30 * 44100) if i + 1 < len(cau) else het
+                ds.append([a, max(b, a + 4410)])
+            cua_so[m] = ds
+        bao("Bước 1/4: xuất giọng gốc...")
+        phan_tich = []
         for m in chon:
-            nguoi.setdefault(self.nguoi_noi(tat_ca[m]["ten"]), []).append(m)
+            kg = tat_ca[m]["kg"]
+            if len(kg) > 1:
+                phan_tich.append({"id": m, "kenh": [self._xuat_mp3_goc(m, c, goc_dir) for c in kg], "cau": cua_so[m]})
+            else:
+                self._xuat_mp3_goc(m, kg[0], goc_dir)
+            if self.dung.is_set():
+                return None
+        gan = {}
+        if phan_tich:
+            ra_pt = os.path.join(lv, "tam", "phan_tich.json")
+            if not self._chay_kich_ban("rt_phan_tich", KICH_BAN_RT, {"che_do": "phan_tich", "ds": phan_tich,
+                                                                     "ra": ra_pt}, py, hf, bao,
+                                       "Bước 1/4: tìm kênh giọng từng nhân vật"):
+                return None
+            with open(ra_pt, encoding="utf-8") as f:
+                kq = json.load(f)
+            for v in phan_tich:
+                kg = tat_ca[v["id"]]["kg"]
+                gan[v["id"]] = [kg[j] if j is not None and j >= 0 else None for j in kq.get(v["id"], [])]
+        for m in chon:
+            if m not in gan:
+                gan[m] = [tat_ca[m]["kg"][0]] * len(chon[m])
+
+        # 2. nguoi noi tung cau -> giong mau
+        nguoi_cau = {}           # (m, i) -> khoa giong
+        mau_nguon = {}           # khoa giong -> [(m, c)]
+        for m, cau in chon.items():
+            t = tat_ca[m]
+            ten_kenh = {}
+            for i, (_, _, ten) in enumerate(cau):
+                c = gan[m][i] if i < len(gan[m]) else None
+                if c is None:
+                    continue
+                if t["k"] == 1:
+                    g = self.nguoi_noi(t["ten"])
+                else:
+                    if ten:
+                        ten_kenh[c] = ten
+                    g = ten_kenh.get(c) or f"kenh_{m}_{c}"
+                nguoi_cau[(m, i)] = g
+                mau_nguon.setdefault(g, []).append((m, c))
+        don = {}                 # nguoi noi -> file 1 kenh 2.5-10 s (giong mau tot)
+        for m2, t2 in self.mul_long_tieng_duoc().items():
+            if t2["k"] == 1 and 2.5 < t2["mau"] / 44100 < 10:
+                don.setdefault(self.nguoi_noi(t2["ten"]), []).append(m2)
         viec_mau = []
-        for i, g in enumerate(sorted(nguoi), 1):
+        for g, ds in mau_nguon.items():
             ra = os.path.join(lv, "mau", g + ".wav")
             if os.path.isfile(ra):
                 continue
-            bao(f"Bước 1/4: lấy giọng gốc {i}/{len(nguoi)}: {g}")
-            nguon = [m for m, t in sorted(tat_ca.items()) if self.nguoi_noi(t["ten"]) == g
-                     and 2.5 < t["mau"] / 44100 < 10][:3] or nguoi[g][:3]
-            viec_mau.append({"ra": ra, "nguon": [self._xuat_mp3_goc(m, os.path.join(lv, "goc")) for m in nguon]})
+            if g in don:
+                nguon = [self._xuat_mp3_goc(m2, 0, goc_dir) for m2 in sorted(don[g])[:3]]
+            else:
+                nguon = [self._xuat_mp3_goc(m2, c2, goc_dir) for m2, c2 in list(dict.fromkeys(ds))[:3]]
+            viec_mau.append({"ra": ra, "nguon": nguon})
             if self.dung.is_set():
                 return None
         if viec_mau and not self._chay_kich_ban("rt_mau", KICH_BAN_RT, {"che_do": "mau", "ds": viec_mau}, py, hf,
-                                                bao, "Bước 1/4: tạo giọng mẫu"):
+                                                bao, "Bước 2/4: tạo giọng mẫu"):
             return None
-        # 2. VieNeu doc tung cau
-        nhom = []
-        for g, ds_m in sorted(nguoi.items(), key=lambda x: -len(x[1])):
-            mau = os.path.join(lv, "mau", g + ".wav")
-            if not os.path.isfile(mau):
+
+        # 3. VieNeu doc tung cau
+        nhom = {}
+        for (m, i), g in nguoi_cau.items():
+            chu = chon[m][i][1]
+            if not chu or not os.path.isfile(os.path.join(lv, "mau", g + ".wav")):
                 continue
-            ds = []
-            for m in ds_m:
-                cau, het = chon[m], tat_ca[m]["mau"] / 44100
-                for i, (khung, chu) in enumerate(cau):
-                    if not chu:
-                        continue
-                    sau = next((k for k, _ in cau[i + 1:]), None)
-                    o = ((sau / 30) if sau is not None else het) - khung / 30
-                    ds.append([f"{m}_{i}", chu, round(max(o, 0.5), 3)])
-            nhom.append({"ten": g, "mau": mau, "ra": os.path.join(lv, "wav", g), "rms": 0.08, "ds": ds})
-        tam = os.path.join(THU_MUC_RT, "vieneu_tam")
-        os.makedirs(tam, exist_ok=True)
-        vj = os.path.join(tam, "rt_doc.json")
+            a, b = cua_so[m][i]
+            nhom.setdefault(g, []).append([f"{m}_{i}", chu, round(max((b - a) / 44100, 0.5), 3)])
+        viec_doc = [{"ten": g, "mau": os.path.join(lv, "mau", g + ".wav"), "ra": os.path.join(lv, "wav", g),
+                     "rms": 0.08, "ds": ds} for g, ds in sorted(nhom.items(), key=lambda x: -len(x[1]))]
+        vj = os.path.join(lv, "tam", "rt_doc.json")
         with open(vj, "w", encoding="utf-8") as f:
-            json.dump({"nhom": nhom, "toi_da": 1.35, "gpu": gpu}, f, ensure_ascii=False)
-        if not self.chay_vieneu(vj, py, hf, gpu, os.path.join(lv, "vieneu_nhat_ky.txt"),
-                                lambda a, b, ct: tien_do(a, b, "Bước 2/4: VieNeu đã đọc" + ct)):
+            json.dump({"nhom": viec_doc, "toi_da": 1.35, "gpu": gpu}, f, ensure_ascii=False)
+        if viec_doc and not self.chay_vieneu(vj, py, hf, gpu, os.path.join(lv, "vieneu_nhat_ky.txt"),
+                                             lambda a, b, ct: tien_do(a, b, "Bước 3/4: VieNeu đã đọc" + ct)):
             return None
-        # 3. ghep vao dung thoi diem phu de, nen MP3 44.1 kHz
-        bao("Bước 3/4: ghép giọng vào đúng thời điểm phụ đề...")
+
+        # 4. ghep vao dung kenh, dung thoi diem phu de -> MP3 44.1 kHz
+        bao("Bước 4/4: ghép giọng vào đúng thời điểm phụ đề...")
         viec = []
         for m, cau in chon.items():
-            g = self.nguoi_noi(tat_ca[m]["ten"])
-            ds = []
-            for i, (khung, chu) in enumerate(cau):
-                sau = next((k for k, _ in cau[i + 1:]), None)
-                w = os.path.join(lv, "wav", g, f"{m}_{i}.wav")
-                ds.append([int(khung / 30 * 44100), int(sau / 30 * 44100) if sau is not None else tat_ca[m]["mau"],
-                           w if chu and os.path.isfile(w) else None])
-            if not any(d[2] for d in ds):
-                continue
-            viec.append({"goc": self._xuat_mp3_goc(m, os.path.join(lv, "goc")), "so_mau": tat_ca[m]["mau"],
-                         "ra": os.path.join(lv, "mp3", m + ".mp3"), "cau": ds})
-        if not self._chay_kich_ban("rt_ghep", KICH_BAN_RT, {"che_do": "ghep", "ds": viec}, py, hf, bao,
-                                   "Bước 3/4: đã ghép"):
+            t = tat_ca[m]
+            theo_kenh = {}
+            for i in range(len(cau)):
+                g = nguoi_cau.get((m, i))
+                c = gan[m][i] if i < len(gan[m]) else None
+                w = os.path.join(lv, "wav", g or "", f"{m}_{i}.wav")
+                if g is None or c is None or not cau[i][1] or not os.path.isfile(w):
+                    continue
+                theo_kenh.setdefault(c, []).append(cua_so[m][i] + [w])
+            for c, ds in theo_kenh.items():
+                viec.append({"goc": self._xuat_mp3_goc(m, c, goc_dir), "so_mau": t["kenh"][c][2],
+                             "ra": self._ten_mp3(m, c), "cau": ds})
+        if viec and not self._chay_kich_ban("rt_ghep", KICH_BAN_RT, {"che_do": "ghep", "ds": viec}, py, hf, bao,
+                                            "Bước 4/4: đã ghép"):
             return None
-        xong = sum(1 for v in viec if os.path.isfile(v["ra"]))
+        xong = len({os.path.basename(v["ra"]).split("_")[0].split(".")[0] for v in viec if os.path.isfile(v["ra"])})
         return {"file": xong, "da_co": sum(1 for m in tat_ca if self.file_giong(m)), "tong": len(tat_ca)}
 
     def xoa_giong(self):
@@ -839,14 +931,43 @@ def doc(p):
 def rms(y):
     return float(np.sqrt(np.mean(y ** 2))) if len(y) else 0.0
 
+def chi_giong(y):
+    # bo doan im lang (giu cac khung 50 ms co tieng)
+    n = int(0.05 * SR)
+    k = len(y) // n
+    if k == 0:
+        return y
+    kh = y[:k * n].reshape(k, n)
+    e = np.sqrt((kh ** 2).mean(axis=1))
+    giu = kh[e > max(0.01, e.max() * 0.08)]
+    return giu.reshape(-1) if len(giu) else y
+
 ds = viec["ds"]
 print("TONG", len(ds), flush=True)
-if viec["che_do"] == "mau":
+if viec["che_do"] == "phan_tich":
+    kq = {}
+    for i, v in enumerate(ds, 1):
+        am = []
+        for p in v["kenh"]:
+            try:
+                am.append(doc(p))
+            except Exception as e:
+                print("LOI", p, e, flush=True)
+                am.append(np.zeros(1, np.float32))
+        gan = []
+        for a, b in v["cau"]:
+            e = [rms(y[a:b]) for y in am]
+            j = int(np.argmax(e)) if e else -1
+            gan.append(j if e and e[j] > 0.004 else -1)
+        kq[v["id"]] = gan
+        print("XONG", i, len(ds), flush=True)
+    json.dump(kq, open(viec["ra"], "w", encoding="utf-8"))
+elif viec["che_do"] == "mau":
     for i, v in enumerate(ds, 1):
         phan = []
         for p in v["nguon"]:
             try:
-                phan.append(doc(p))
+                phan.append(chi_giong(doc(p)))
                 phan.append(np.zeros(int(0.3 * SR), np.float32))
             except Exception as e:
                 print("LOI", p, e, flush=True)
@@ -868,13 +989,10 @@ else:
             continue
         n = int(v["so_mau"])
         goc = np.pad(goc, (0, max(0, n - len(goc))))[:n]
-        ra = np.zeros(n, np.float32)
+        ra = goc.copy()                       # giu nguyen am thanh goc ngoai cac cau da long tieng
         for a, b, w in v["cau"]:
             a, b = max(0, min(a, n)), max(0, min(b, n))
-            if b <= a:
-                continue
-            if not w:
-                ra[a:b] = goc[a:b]          # cau khong dich (tieng la, tieng cuoi...) giu giong goc
+            if b <= a or not w:
                 continue
             y = doc(w)
             cho = b - a
@@ -887,20 +1005,18 @@ else:
                 y = y[:cho]
                 m = min(len(y), int(0.03 * SR))
                 y[-m:] *= np.linspace(1, 0, m, dtype=np.float32)
-            r0, r1 = rms(goc[a:b][np.abs(goc[a:b]) > 0.01]), rms(y[np.abs(y) > 0.01])
+            g = goc[a:b]
+            r0, r1 = rms(g[np.abs(g) > 0.01]), rms(y[np.abs(y) > 0.01])
             if r0 > 1e-3 and r1 > 1e-3:
                 y = y * min(r0 / r1, 4.0)
-            ra[a:a + len(y)] += y
+            ra[a:b] = 0
+            ra[a:a + len(y)] = y
         dinh = float(np.max(np.abs(ra))) if n else 0
         if dinh > 0.98:
             ra *= 0.98 / dinh
-        try:
-            sf.write(v["ra"] + ".tam", ra, SR, format="MP3", subtype="MPEG_LAYER_III",
-                     bitrate_mode="CONSTANT", compression_level=0.7)
-            os.replace(v["ra"] + ".tam", v["ra"])
-        except Exception as e:
-            print("LOI MP3", e, flush=True)
-            raise
+        sf.write(v["ra"] + ".tam", ra, SR, format="MP3", subtype="MPEG_LAYER_III",
+                 bitrate_mode="CONSTANT", compression_level=0.7)
+        os.replace(v["ra"] + ".tam", v["ra"])
         print("XONG", i, len(ds), flush=True)
 print("HET", flush=True)
 """
