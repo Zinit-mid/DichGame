@@ -101,7 +101,8 @@ def doc_tep_tiger(duong_dan, muc):
 
 
 def tao_tiger(duong_dan, ma, cac_tep):
-    """Goi .tiger moi (1 phan). cac_tep: [(bam, locale, du_lieu)]."""
+    """Goi .tiger moi (1 phan). cac_tep: [(bam, locale, du_lieu)] – tu xep theo (bam, locale)."""
+    cac_tep = sorted(cac_tep, key=lambda x: (x[0], x[1]))
     dau = struct.pack("<5i", MAGIC_TIGER, 4, 1, len(cac_tep), ma) + b"pcx64-w".ljust(0x20, b"\0")
     vt = len(dau) + 24 * len(cac_tep)
     bang, than = b"", b""
@@ -117,7 +118,9 @@ def tao_tiger(duong_dan, ma, cac_tep):
 
 
 def tao_tiger_lon(duong_dan, ma, cac_tep, bao=lambda s: None):
-    """Nhu tao_tiger nhung ghi dan ra dia (goi lon). cac_tep: [(bam, locale, ham_lay_bytes)]."""
+    """Nhu tao_tiger nhung ghi dan ra dia (goi lon). cac_tep: [(bam, locale, ham_lay_bytes)].
+    BANG FILE PHAI XEP THEO (bam, locale) – game tim file kieu nhi phan, sai thu tu = mat ca goi."""
+    cac_tep = sorted(cac_tep, key=lambda x: (x[0], x[1]))
     dau = struct.pack("<5i", MAGIC_TIGER, 4, 1, len(cac_tep), ma) + b"pcx64-w".ljust(0x20, b"\0")
     bang = bytearray(24 * len(cac_tep))
     tam = duong_dan + ".tam"

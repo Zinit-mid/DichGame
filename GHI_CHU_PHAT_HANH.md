@@ -1,3 +1,7 @@
+## Dịch Game v6.11.1
+
+- Sửa lỗi nặng: cài Việt hóa Tomb Raider có lồng tiếng xong thì game mất luôn cả chữ tiếng Việt và vẫn nói tiếng Anh – bảng file trong gói chưa xếp theo thứ tự nên game không tìm thấy. Bấm "Cài Việt hóa" lại một lần.
+
 ## Dịch Game v6.11.0 – Tomb Raider: phụ đề phim + lồng tiếng Việt
 
 - Rise of the Tomb Raider: Việt hóa luôn **phụ đề đoạn phim và lời thoại** (nằm trong file .mul, trước đây vẫn tiếng Anh). Câu phụ đề được gộp vào bước "Bắt đầu dịch".
