@@ -1919,13 +1919,21 @@ class ThuVien(App):
             self.q.put(("goi", lambda: self.rt_tien_do.config(text=chu, fg=UI_VANG)))
 
         def chay():
+            giu = False
             try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
                 xong = viec.chay_offline(bao, tien_do) if may == "offline" else viec.chay(khoa, gh, bao, tien_do)
                 if xong:
                     bao(f"Dịch xong ✓ (tốn {viec.tien:.3f} USD). Bấm \"Cài Việt hóa\" (tắt game trước).")
             except Exception as e:
                 bao(f"Lỗi: {e}")
             finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
                 self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
                                             self.rt_nut_chay.config(text="Bắt đầu dịch"),
                                             self._rt_da_nap(viec))))
@@ -1985,19 +1993,29 @@ class ThuVien(App):
 
         def chay():
             mau = UI_XANH
+            giu = False
             try:
+                if os.name == "nt":
+                    # ES_CONTINUOUS | ES_SYSTEM_REQUIRED: khong cho may ngu trong luc long tieng
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
                 kq = viec.long_tieng(thu=thu, bao=bao, tien_do=tien_do, may=self.rt_may,
                                      khoa=vcd.doc_khoa_claude(), tang_db=self.rt_am)
                 if kq is None:
                     chu, mau = "Đã tạm dừng – bấm lại để làm tiếp.", UI_VANG
                 elif thu:
-                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại đầu game ✓\nBấm \"Cài Việt hóa (có dấu)\" (tắt game trước), "
+                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại đầu game ✓\nBấm \"Cài Việt hóa (không dấu)\" (tắt game trước), "
                            f"rồi vào game nghe thử. Giọng nằm ở {viec.thu_muc_giong()}")
                 else:
                     chu = (f"Lồng tiếng xong: thêm {kq['file']:,} đoạn, tổng {kq['da_co']:,}/{kq.get('tong', kq['da_co']):,} ✓ "
                            f"Bấm \"Cài Việt hóa\" để đưa giọng vào game.").replace(",", ".")
             except Exception as e:
                 chu, mau = f"Lỗi lồng tiếng: {e}", UI_LOI
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
             self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
                                         self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu đầu game)"),
                                         self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))

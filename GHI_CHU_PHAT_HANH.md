@@ -1,3 +1,7 @@
+## Dịch Game v6.14.1
+
+- Tomb Raider: giữ máy không ngủ trong lúc dịch và lồng tiếng (chạy qua đêm được).
+
 ## Dịch Game v6.14.0 – Tomb Raider: giọng Lara mạnh mẽ hơn
 
 - Giọng mẫu mới: app tự nghe khoảng 24 câu của mỗi nhân vật và chọn 3 câu nói TO, DỨT KHOÁT nhất (ưu tiên câu có dấu "!"), bỏ câu thì thầm / lẩm bẩm.
