@@ -173,7 +173,7 @@ def _doc_define_font(d, ma):
         cac = struct.unpack_from(f"<{so}H", d, q) if ma_rong else tuple(d[q:q + so])
         du, tong = _bao_viet(cac)
         kq["chu_viet"] = f"{du}/{tong}"
-        kq["mau_chu"] = "".join(chr(c) for c in sorted(cac) if c >= 0x20)[:200]
+        kq["mau_chu"] = "".join(chr(c) for c in sorted(cac) if c >= 0x20 and not 0xD800 <= c <= 0xDFFF)[:200]
     return kq
 
 
@@ -440,10 +440,10 @@ class DoPhong:
             dong.append("== LỖI ==")
             dong += [f"- {k['loi_file']}: {k['loi']}" for k in loi]
         p = os.path.join(self.ra, "bao_cao_font.txt")
-        with open(p, "w", encoding="utf-8") as f:
+        with open(p, "w", encoding="utf-8", errors="backslashreplace") as f:
             f.write("\n".join(dong))
         with open(os.path.join(self.ra, "bao_cao_font.json"), "w", encoding="utf-8") as f:
-            json.dump({"ket_qua": self.ket_qua, "chuoi": self.chuoi}, f, ensure_ascii=False, default=str)
+            json.dump({"ket_qua": self.ket_qua, "chuoi": self.chuoi}, f, ensure_ascii=True, default=str)
         zp = os.path.join(self.ra, "GuiClaude_DoFont.zip")
         try:
             import zipfile

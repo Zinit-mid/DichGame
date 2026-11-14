@@ -1,3 +1,7 @@
+## Dịch Game v6.19.1
+
+- Sửa lỗi "Dò font của game" báo "'utf-8' codec can't encode… surrogates not allowed" lúc ghi báo cáo (gần xong).
+
 ## Dịch Game v6.19.0 – Việt hóa Tomb Raider (2013) và Shadow of the Tomb Raider
 
 - Thẻ Tomb Raider (2013) (cả bản Steam và Epic GOTY) và Shadow of the Tomb Raider giờ có nút "Việt hóa" như Rise: dịch toàn bộ chữ trong game (Claude / Offline), cài gói thử kiểm tra font, cài có dấu / không dấu, gỡ, dò font.
