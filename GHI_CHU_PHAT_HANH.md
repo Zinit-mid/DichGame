@@ -1,3 +1,11 @@
+## Dịch Game v6.11.0 – Tomb Raider: phụ đề phim + lồng tiếng Việt
+
+- Rise of the Tomb Raider: Việt hóa luôn **phụ đề đoạn phim và lời thoại** (nằm trong file .mul, trước đây vẫn tiếng Anh). Câu phụ đề được gộp vào bước "Bắt đầu dịch".
+- Mới: **Bước 4 – Lồng tiếng Việt** bằng VieNeu: giọng giống nhân vật gốc (Lara, Nadia, Jonah...), đặt đúng thời điểm phụ đề. Tự ghi file âm thanh của game, không cần cài thêm phần mềm.
+  - "Lồng tiếng thử (10 câu Lara)" → Cài Việt hóa → vào game nghe thử trước khi làm hết.
+  - Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.
+- Cài Việt hóa chạy nền, hiện tiến độ (gói có phụ đề + giọng nặng hơn trước).
+
 ## Dịch Game v6.10.1
 
 - Sửa: nút "Danh sách rương" trên trang Bản đồ Crimson Desert không mở được (trang Game8 chặn) – đổi sang trang khác

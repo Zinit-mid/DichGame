@@ -1802,6 +1802,21 @@ class ThuVien(App):
         self._nut(hang3, "Cài Việt hóa (có dấu)", lambda: self._rt_cai(False, False), chinh=True).pack(side="left")
         self._nut(hang3, "Cài Việt hóa (không dấu)", lambda: self._rt_cai(False, True)).pack(side="left", padx=6)
         self._nut(hang3, "Gỡ Việt hóa", self._rt_go).pack(side="left")
+        tk.Label(w, text="BƯỚC 4 – LỒNG TIẾNG VIỆT (cần app VieNeu bản GPU)", bg=UI_NEN, fg=UI_VANG,
+                 font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
+        nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
+             "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
+             "• Làm GÓI THỬ trước (10 câu của Lara) → bấm Cài Việt hóa → vào game nghe thử. Chạy lại = làm tiếp.",
+             UI_PHU, 9).pack(fill="x")
+        self.rt_lt = nhan("", UI_CHU, 10)
+        self.rt_lt.pack(fill="x", pady=(4, 0))
+        hang4 = tk.Frame(w, bg=UI_NEN)
+        hang4.pack(fill="x", pady=(6, 4))
+        self.rt_nut_lt = self._nut(hang4, "Lồng tiếng thử (10 câu Lara)", lambda: self._rt_long_tieng(True), chinh=True)
+        self.rt_nut_lt.pack(side="left")
+        self._nut(hang4, "Lồng tiếng tất cả", lambda: self._rt_long_tieng(False)).pack(side="left", padx=6)
+        self._nut(hang4, "Tạm dừng", self._rt_dung).pack(side="left")
+        self._nut(hang4, "Xóa giọng đã tạo", self._rt_xoa_giong, nho=True).pack(side="left", padx=6)
         self.rt_tien_do = nhan("", UI_VANG, 10)
         self.rt_tien_do.pack(fill="x", pady=(8, 0))
         self.rt_viec = None
@@ -1811,7 +1826,9 @@ class ThuVien(App):
 
         def nap():
             try:
-                viec = vrt.ViecRottr(g["thu_muc"]).nap()
+                viec = vrt.ViecRottr(g["thu_muc"]).nap(
+                    lambda s: self.q.put(("goi", lambda s=s: self.rt_tk.config(
+                        text=s + "\n(lần đầu đọc phụ đề phim có thể mất 1–3 phút)", fg=UI_CHU))))
                 self.q.put(("goi", lambda: self._rt_da_nap(viec)))
             except Exception as e:
                 self.q.put(("goi", lambda e=e: self.rt_tk.config(text=f"Lỗi đọc game: {e}", fg=UI_LOI)))
@@ -1854,6 +1871,16 @@ class ThuVien(App):
                        "\n⚠ Chưa có mã Claude: bấm Cài đặt → Claude AI, dán mã rồi bấm Lưu mã."))
         trang = "\nĐang cài trong game: " + ("CÓ gói Việt hóa ✓" if viec.da_cai() else "chưa")
         self.rt_tk.config(fg=UI_CHU, text=(dau + duoi + trang).replace(",", "."))
+        try:
+            m = viec.thong_ke_mul()
+            chu = (f"Phụ đề phim / lời thoại: {m['cau']:,} câu, đã dịch {m['da_dich']:,} (đã gộp trong bước Dịch ở trên)\n"
+                   f"Lời thoại lồng tiếng được: {m['giong']:,} đoạn • đã lồng tiếng {m['da_long']:,}").replace(",", ".")
+            if getattr(viec, "loi_mul", None):
+                chu += f"\n⚠ Không đọc được phụ đề phim: {viec.loi_mul}"
+        except Exception as e:
+            chu = f"⚠ Không đọc được phụ đề phim: {e}"
+        if hasattr(self, "rt_lt"):
+            self.rt_lt.config(text=chu)
 
     def _rt_chay(self):
         import viet_hoa_cd as vcd
@@ -1904,18 +1931,73 @@ class ThuVien(App):
         if self.rt_dang_chay:
             self.rt_tien_do.config(text="Đợi dịch xong hoặc bấm Tạm dừng trước.", fg=UI_VANG)
             return
-        try:
-            so = self.rt_viec.cai(khong_dau=khong_dau, chi_thu=thu)
-        except Exception as e:
-            self.rt_tien_do.config(text=f"Không cài được: {_loi_quyen(e)}", fg=UI_LOI)
+        viec = self.rt_viec
+        self.rt_dang_chay = True
+        self.rt_tien_do.config(text="Đang cài vào game (tắt game trước)...", fg=UI_VANG)
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.rt_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            try:
+                so = viec.cai(khong_dau=khong_dau, chi_thu=thu, bao=bao)
+                kieu = "không dấu" if khong_dau else "có dấu"
+                if thu:
+                    chu = (f"Đã cài GÓI THỬ ({kieu}, {so} chữ menu) ✓\nMở game, nhìn menu chính / Tùy chọn: chữ tiếng Việt "
+                           f"có hiện đúng không? Chụp màn hình gửi Claude.")
+                else:
+                    sc = getattr(viec, "so_cai", {})
+                    chu = (f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ, {sc.get('phu_de', 0):,} câu phụ đề phim, "
+                           f"{sc.get('giong', 0):,} đoạn lồng tiếng ✓ Mở game để chơi.").replace(",", ".")
+                mau = UI_XANH
+            except Exception as e:
+                chu, mau = f"Không cài được: {_loi_quyen(e)}", UI_LOI
+            self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
+                                        self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _rt_long_tieng(self, thu):
+        if self.rt_viec is None or self.rt_dang_chay:
             return
-        kieu = "không dấu" if khong_dau else "có dấu"
-        if thu:
-            chu = (f"Đã cài GÓI THỬ ({kieu}, {so} chữ menu) ✓\nMở game, nhìn menu chính / Tùy chọn: chữ tiếng Việt "
-                   f"có hiện đúng không? Chụp màn hình gửi Claude.")
-        else:
-            chu = f"Đã cài Việt hóa ({kieu}, {so:,} dòng chữ) ✓ Mở game để chơi.".replace(",", ".")
-        self.rt_tien_do.config(text=chu, fg=UI_XANH)
+        viec = self.rt_viec
+        viec.dung.clear()
+        self.rt_dang_chay = True
+        self.rt_nut_lt.config(text="Đang lồng tiếng...")
+        self.rt_tien_do.config(text="Đang chuẩn bị lồng tiếng...", fg=UI_VANG)
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.rt_tien_do.config(text=s, fg=UI_VANG)))
+
+        def tien_do(a, b, ct):
+            bao(f"{ct} {a:,}/{b:,} câu".replace(",", ".") if b else ct)
+
+        def chay():
+            mau = UI_XANH
+            try:
+                kq = viec.long_tieng(thu=thu, bao=bao, tien_do=tien_do)
+                if kq is None:
+                    chu, mau = "Đã tạm dừng – bấm lại để làm tiếp.", UI_VANG
+                elif thu:
+                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại của Lara ✓\nBấm \"Cài Việt hóa (có dấu)\" (tắt game trước), "
+                           f"rồi vào game nghe thử. Giọng nằm ở {viec.thu_muc_giong()}")
+                else:
+                    chu = (f"Lồng tiếng xong: thêm {kq['file']:,} đoạn, tổng {kq['da_co']:,}/{kq.get('tong', kq['da_co']):,} ✓ "
+                           f"Bấm \"Cài Việt hóa\" để đưa giọng vào game.").replace(",", ".")
+            except Exception as e:
+                chu, mau = f"Lỗi lồng tiếng: {e}", UI_LOI
+            self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
+                                        self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu Lara)"),
+                                        self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _rt_xoa_giong(self):
+        if self.rt_viec is None or self.rt_dang_chay:
+            return
+        if not self.messagebox.askyesno("Xóa giọng đã tạo", "Xóa toàn bộ giọng lồng tiếng đã tạo cho Tomb Raider?\n"
+                                        "(Bấm Cài Việt hóa lại sau đó để game dùng lại giọng gốc.)"):
+            return
+        self.rt_viec.xoa_giong()
+        self.rt_tien_do.config(text="Đã xóa giọng lồng tiếng. Bấm Cài Việt hóa để cập nhật game.", fg=UI_XANH)
         self._rt_da_nap(self.rt_viec)
 
     def _rt_go(self):

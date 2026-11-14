@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: >
           python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame
-          --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --add-data "fonts;fonts" --hidden-import giao_dien --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import viet_hoa_rottr --hidden-import ban_do_cd --hidden-import crimson_desert --collect-submodules cryptography
+          --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --add-data "fonts;fonts" --hidden-import giao_dien --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import viet_hoa_rottr --hidden-import rottr_mul --hidden-import ban_do_cd --hidden-import crimson_desert --collect-submodules cryptography
           --collect-all winocr --collect-all winrt --collect-all windows_capture
           --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw
           dich_game.py
@@ -61,7 +61,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force phat_hanh | Out-Null
           Copy-Item dist/DichGame.exe phat_hanh/DichGame.exe
-          Compress-Archive -Force -Path dich_game.py,giao_dien.py,viet_hoa.py,viet_hoa_cd.py,viet_hoa_rottr.py,ban_do_cd.py,crimson_desert.py,fonts,danh_muc.json,icon.ico,requirements.txt,requirements_them.txt,chay_thu.bat,dong_goi_exe.bat,HUONG_DAN.txt -DestinationPath phat_hanh/DichGame.zip
+          Compress-Archive -Force -Path dich_game.py,giao_dien.py,viet_hoa.py,viet_hoa_cd.py,viet_hoa_rottr.py,rottr_mul.py,ban_do_cd.py,crimson_desert.py,fonts,danh_muc.json,icon.ico,requirements.txt,requirements_them.txt,chay_thu.bat,dong_goi_exe.bat,HUONG_DAN.txt -DestinationPath phat_hanh/DichGame.zip
 
       - name: Dang Release
         if: steps.pb.outputs.co_roi == '0'
