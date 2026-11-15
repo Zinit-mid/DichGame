@@ -206,6 +206,7 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
     doc = _Doc()
     bst = []                     # (g, muc, drm)
     tong = len(hl)
+    ver_dem = {}                 # chan doan: so dau tien cua moi file
     try:
         for i, ((bam, loc), (g, m)) in enumerate(hl.items()):
             if dung is not None and dung.is_set():
@@ -217,7 +218,9 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
             p = vrt.duong_dan_phan(g["p"], m["phan"])
             try:
                 dau = doc.khoi(p, m["vt"], can=32, toi_da=32)
-                if len(dau) < 32 or struct.unpack_from("<i", dau, 0)[0] != 22:
+                v0 = struct.unpack_from("<i", dau, 0)[0] if len(dau) >= 4 else -1
+                ver_dem[v0] = ver_dem.get(v0, 0) + 1
+                if len(dau) < 32 or v0 != 22:
                     continue
                 du = doc.khoi(p, m["vt"], toi_da=m["co"])
                 d = doc_drm(du)
@@ -266,7 +269,8 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
                                  "md5": hashlib.md5(toan).hexdigest()})
                 break
         if not font:
-            raise LoiFont("không tìm thấy thư viện font chữ Latin của game")
+            _chan_doan(goi, hl, bst, ung, ver_dem, theo_id, doc)
+            raise LoiFont("không tìm thấy thư viện font chữ Latin của game (đã ghi font_chan_doan.txt)")
         locs_font = {tuple(x["loc"]) for x in font}
         dung_bst = []
         for g, m, d in bst:
@@ -281,6 +285,62 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
     with open(FILE_DO, "w", encoding="utf-8") as f:
         json.dump(kq, f)
     return kq
+
+
+def _goi_y_do_phong():
+    """Vi tri font tim duoc boi cong cu 'Do font cua game' (bao_cao_font.json tren Desktop), neu co."""
+    ho = os.environ.get("USERPROFILE", "")
+    for d in (os.path.join(ho, "Desktop"), os.path.join(ho, "OneDrive", "Desktop")):
+        p = os.path.join(d, "DoFont_RotTR", "bao_cao_font.json")
+        try:
+            with open(p, encoding="utf-8") as f:
+                kq = json.load(f)["ket_qua"]
+        except Exception:
+            continue
+        return [k for k in kq if any(len(x.get("mau_chu", "")) > 100 for x in k.get("phong", []))]
+    return []
+
+
+def _chan_doan(goi, hl, bst, ung, ver_dem, theo_id, doc):
+    """Ghi thong tin de tim vi sao khong thay font -> %APPDATA%/VietHoaGame/rottr/font_chan_doan.txt"""
+    d = [f"Goi: {len(goi)}  file co hieu luc: {len(hl)}  bo suu tap v22: {len(bst)}  ung vien: {len(ung)}"]
+    for g in goi:
+        d.append(f"  {g['ten']} id={g['id']} uu={g['uu']} so_file={len(g['ds'])}")
+    d.append("So dau tien cua file (nhieu nhat): " +
+             ", ".join(f"{k}:{v}" for k, v in sorted(ver_dem.items(), key=lambda x: -x[1])[:15]))
+    loai = {}
+    for _, _, dr in bst:
+        for idn in dr["ids"]:
+            loai[idn["loai"]] = loai.get(idn["loai"], 0) + 1
+    d.append("Loai tai nguyen: " + ", ".join(f"{k}:{v}" for k, v in sorted(loai.items())))
+    goi_y = _goi_y_do_phong()
+    d.append(f"Goi y tu bao cao do font: {len(goi_y)}")
+    for k in goi_y[:12]:
+        ten = [x.get("ten") for x in k.get("phong", [])]
+        d.append(f"  {k.get('file')} cdrm={k.get('cdrm')} vi_tri={k.get('vi_tri')} font={ten}")
+        cd = k.get("cdrm")
+        tim = 0
+        for g, m, dr in bst:
+            for idn, loc in zip(dr["ids"], dr["locs"]):
+                if loc[2] == cd:
+                    tim += 1
+                    if tim <= 5:
+                        d.append(f"     -> bst {g['ten']} bam={m['bam']:08X} loc={m['locale']:08X} id={idn} vitri={loc} "
+                                 f"trong_ung={tuple(loc) in ung}")
+        d.append(f"     so bo suu tap tro toi: {tim}")
+        # thu doc truc tiep
+        for g in goi:
+            if g["ten"] == k.get("file") or g["ten"].replace(".000.tiger", "") in str(k.get("file")):
+                d.append(f"     file thuoc goi {g['ten']} id={g['id']}")
+    # vai vi tri mau
+    mau = list(ung.items())[:10]
+    d.append("Mau ung vien: " + "; ".join(f"{l}:{k}" for l, k in mau))
+    try:
+        os.makedirs(os.path.dirname(FILE_DO), exist_ok=True)
+        with open(os.path.join(os.path.dirname(FILE_DO), "font_chan_doan.txt"), "w", encoding="utf-8") as f:
+            f.write("\n".join(d))
+    except Exception:
+        pass
 
 
 # ================================================================ tao goi

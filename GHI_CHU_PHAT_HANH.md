@@ -1,3 +1,7 @@
+## Dịch Game v6.20.4
+
+- Tomb Raider: khi không tìm thấy font chữ của game, app ghi file chẩn đoán (font_chan_doan.txt) để tìm nguyên nhân.
+
 ## Dịch Game v6.20.3
 
 - Tomb Raider: nếu ghép giọng Việt vào một đoạn thoại bị lỗi, app vẫn giữ PHỤ ĐỀ tiếng Việt cho đoạn đó (trước đây cả đoạn trở về tiếng Anh mà không báo). Lỗi được ghi vào loi_cai.txt và báo số lượng sau khi cài.
