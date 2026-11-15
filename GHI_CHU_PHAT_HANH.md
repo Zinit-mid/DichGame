@@ -1,3 +1,8 @@
+## Dịch Game v6.20.2
+
+- Tomb Raider: sửa lỗi còn vài trăm câu phụ đề "đã dịch" nhưng vẫn là tiếng Anh (máy dịch trả lại nguyên câu) – nay app dịch lại các câu này.
+- Chú thích âm thanh trong <...> (vd <coughing>) được phép dịch – trước đây làm cả câu bị bỏ qua.
+
 ## Dịch Game v6.20.1
 
 - Sửa lỗi dò font Rise of the Tomb Raider chạy rất lâu (hàng giờ): trước đây mỗi tài nguyên trong một khối nén lớn đều bị giải nén lại từ đầu; nay mỗi khối chỉ giải nén một lần. Thanh tiến độ hiện số tài nguyên đã kiểm.

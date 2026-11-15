@@ -347,8 +347,10 @@ Quy tắc bắt buộc:
 - CHỈ trả về một mảng JSON hợp lệ, CÙNG SỐ PHẦN TỬ, CÙNG THỨ TỰ. Không giải thích, không ```.
 - GIỮ NGUYÊN tiếng Anh: tên người, địa danh, tổ chức, phe phái, tên vũ khí / trang bị / kỹ năng riêng, \
 và mọi từ trong danh sách "Giữ nguyên" nếu có.
-- Giữ NGUYÊN từng ký tự mọi thẻ và mã: <...>, {...}, [...], %s, %d, \\n, $..., kể cả khoảng trắng quanh chúng. \
-Không dịch, không thêm, không bớt thẻ.
+- Giữ NGUYÊN từng ký tự mọi thẻ và mã: {...}, [...], %s, %d, \\n, $..., kể cả khoảng trắng quanh chúng. \
+Không dịch, không thêm, không bớt thẻ. Riêng chú thích âm thanh trong <...> (vd <coughing>, <via radio>): \
+giữ dấu < > nhưng DỊCH chữ bên trong (vd <ho>, <qua bộ đàm>).
+- Câu cảm thán, câu ngắn, câu chửi thề cũng phải dịch (vd "Shit!" -> "Chết tiệt!"), không trả lại tiếng Anh.
 - Giữ nguyên số, ký hiệu, khoảng trắng đầu/cuối và cách xuống dòng.
 - Văn phong tự nhiên như phụ đề phim phiêu lưu hiện đại. Lara xưng "tôi"; xưng hô hợp ngữ cảnh.
 - Menu, nút bấm, tiêu đề: ngắn gọn, rõ nghĩa như game Việt hóa chính thức.
@@ -537,8 +539,10 @@ class ViecRottr(vcd.ViecDich):
             if v in da:
                 continue
             vi = self.bo_nho.get(v)
-            if vi is not None and (vi == v or self._the(vi) == self._the(v)):
+            if vi is not None and vi != v and self._the(vi) == self._the(v):
                 continue
+            if vi == v and not self._con_chu_anh(v):
+                continue                     # chi co ten rieng / ky hieu -> giu nguyen la dung
             da.add(v)
             ds.append(v)
         return ds
@@ -550,7 +554,15 @@ class ViecRottr(vcd.ViecDich):
                 "ky_tu_con": sum(len(v) for v in con)}
 
     def _the(self, s):
-        return sorted(self.THE.findall(s))
+        # <chu thich am thanh> (vd "<coughing>", "<via helicopter loudspeaker>") duoc phep dich ben trong
+        return sorted("<~>" if t.startswith("<") and re.search(r"[a-z]{2}", t) else t for t in self.THE.findall(s))
+
+    def _con_chu_anh(self, v):
+        """Chuoi con chu tieng Anh can dich (khong chi la ten rieng / ky hieu)?"""
+        if not self.nen_dich(None, v):
+            return False
+        t = self.THE.sub(" ", v)
+        return any(re.search(r"[a-z]", w) for w in re.findall(r"[A-Za-z']{2,}", t))
 
     def chuoi_viet(self, en, khong_dau=False, goc=False):
         vi = self.bo_nho.get(en)
