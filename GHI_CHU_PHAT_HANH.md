@@ -1,3 +1,9 @@
+## Dịch Game v6.20.0 – Rise of the Tomb Raider: font tiếng Việt CÓ DẤU đầy đủ
+
+- Bấm "Cài Việt hóa (có dấu)" (hoặc "Cài gói thử (có dấu)"): app tự thêm chữ tiếng Việt (ă â đ ê ô ơ ư + 5 dấu, chữ hoa và thường) vào font chữ của game. Chữ được ghép từ chính kiểu chữ DIN của game nên nhìn đồng bộ.
+- Lần đầu app dò font của game mất vài phút (máy được giữ thức); các lần sau dùng lại kết quả.
+- Không làm được font thì app báo lý do và vẫn cài như cũ (ghép dấu tạm). "Không dấu" không đổi.
+
 ## Dịch Game v6.19.2
 
 - Bảng điều khiển của app chỉ ẩn khỏi ảnh chụp / quay màn hình KHI ĐANG DỊCH MÀN HÌNH (Tự động bật, F12). Không dịch thì chụp màn hình, quay video, chia sẻ màn hình thấy app bình thường.

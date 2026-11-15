@@ -1851,7 +1851,8 @@ class ThuVien(App):
         tk.Label(the, text="BƯỚC 1 – KIỂM TRA FONT (làm trước)", bg=UI_THE, fg=UI_VANG,
                  font=ft(9, "bold"), anchor="w").pack(fill="x")
         tu_xuong_dong(tk.Label(the, text="Cài gói thử: chỉ đổi chữ menu chính (Tiếp tục, Tùy chọn, Danh sách ắằẳ…). Vào game xem "
-                           "chữ có dấu hiện đúng không. Nếu ra ô vuông / mất chữ → dùng kiểu \"không dấu\".",
+                           "chữ có dấu hiện đúng không. Nếu ra ô vuông / mất chữ → dùng kiểu \"không dấu\".\n"
+                                   "Rise: cài có dấu sẽ tự thêm chữ tiếng Việt vào font của game (lần đầu dò font mất vài phút).",
                  bg=UI_THE, fg=UI_PHU, font=ft(9), anchor="w", justify="left",
                  wraplength=620), the).pack(fill="x", pady=(2, 6))
         h = tk.Frame(the, bg=UI_THE)
@@ -2063,7 +2064,11 @@ class ThuVien(App):
             self.q.put(("goi", lambda s=s: self.rt_tien_do.config(text=s, fg=UI_VANG)))
 
         def chay():
+            giu = False
             try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                viec.dung.clear()
                 so = viec.cai(khong_dau=khong_dau, chi_thu=thu, bao=bao)
                 kieu = "không dấu" if khong_dau else "có dấu"
                 if thu:
@@ -2076,9 +2081,20 @@ class ThuVien(App):
                                f"{sc.get('giong', 0):,} đoạn lồng tiếng ✓ Mở game để chơi.").replace(",", ".")
                     else:
                         chu = f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ ✓ Mở game để chơi.".replace(",", ".")
+                if not khong_dau and getattr(self, "loai_rt", "rise") == "rise":
+                    if getattr(viec, "co_font", False):
+                        chu += "\n+ Đã thêm chữ tiếng Việt vào font của game (có dấu đầy đủ)."
+                    elif getattr(viec, "loi_font", None):
+                        chu += f"\n⚠ Chưa thêm được font tiếng Việt: {viec.loi_font} – chữ thiếu dấu được ghép tạm."
                 mau = UI_XANH
             except Exception as e:
                 chu, mau = f"Không cài được: {_loi_quyen(e)}", UI_LOI
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
             self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
                                         self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
         threading.Thread(target=chay, daemon=True).start()

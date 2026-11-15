@@ -556,16 +556,35 @@ class ViecRottr(vcd.ViecDich):
         vi = self.bo_nho.get(en)
         if not vi or vi == en or self._the(vi) != self._the(en):
             return None
-        if goc:
-            return vi
+        if goc or (not khong_dau and getattr(self, "_font_viet", False)):
+            return unicodedata.normalize("NFC", vi)     # da cai font tieng Viet -> giu nguyen chu co dau
         return bo_dau(vi) if khong_dau else dau_ghep(vi)
 
     # ---------------------------------------------------------- cai / go
     def da_cai(self):
         return os.path.isfile(os.path.join(self.thu_muc_game, TEP_TIGER))
 
+    def _chuan_bi_font(self, bao):
+        """Font tieng Viet cho game (chi khi cai co dau). Loi -> None (dung cach ghep dau cu)."""
+        self.loi_font = None
+        try:
+            import sys
+            import font_rottr
+            goc = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+            p = os.path.join(goc, "fonts", "BeVietnamPro-Bold.ttf")
+            with open(p, "rb") as f:
+                ttf = f.read()
+            return font_rottr.chuan_bi(self.thu_muc_game, ttf, bao, self.dung)
+        except Exception as e:
+            self.loi_font = str(e) or type(e).__name__
+            return None
+
     def cai(self, khong_dau=False, chi_thu=False, bao=lambda s: None):
-        """Ghi goi mod vao thu muc game. chi_thu: chi doi chu menu (kiem tra font). -> so chuoi da doi."""
+        """Ghi goi mod vao thu muc game. chi_thu: chi doi chu menu (kiem tra font). -> so chuoi da doi.
+        Co dau: them chu Viet vao font cua game (font_rottr) -> chu co dau hien day du."""
+        font = None if khong_dau else self._chuan_bi_font(bao)
+        self._font_viet = font is not None
+        self.co_font = font is not None
         lang, khoa, goc, n = self.locals
         moi = dict(goc)
         doi = 0
@@ -573,7 +592,7 @@ class ViecRottr(vcd.ViecDich):
             if chi_thu:
                 vi = CHU_THU.get(en.strip().lower())
                 if vi:
-                    vi = bo_dau(vi) if khong_dau else dau_ghep(vi)
+                    vi = bo_dau(vi) if khong_dau else (unicodedata.normalize("NFC", vi) if font else dau_ghep(vi))
             else:
                 vi = self.chuoi_viet(en, khong_dau)
             if vi:
@@ -592,12 +611,25 @@ class ViecRottr(vcd.ViecDich):
                                 lambda m=m, giong=giong: self._mul_moi(m, khong_dau, giong)))
         if not doi and len(cac) == 1:
             raise LoiDung("chưa có câu nào được dịch – bấm Dịch trước")
-        tam = os.path.join(self.thu_muc_game, TEP_TIGER + ".moi")
+        tm = self.thu_muc_game
+        tam_chung = os.path.join(tm, TEP_TIGER_GOC + ".moi")
+        cac_vt = []
+        if font:
+            import font_rottr
+            chung = [(b, l, (lambda cv, h=h: h(ma, cv))) for b, l, h in font["bst"] if l != LOCALE_EN]
+            cac_vt = font_rottr.tao_goi_chung(tam_chung, ma, font["tai_nguyen"], chung)
+            for b, l, h in font["bst"]:
+                if l == LOCALE_EN:
+                    cac.append((b, l, lambda h=h: h(ma, cac_vt)))
+        tam = os.path.join(tm, TEP_TIGER + ".moi")
         tao_tiger_lon(tam, ma, cac, bao)
         self.go()
-        os.replace(tam, os.path.join(self.thu_muc_game, TEP_TIGER))
-        tao_tiger(os.path.join(self.thu_muc_game, TEP_TIGER_GOC), ma, [])
-        ghi_nfo(os.path.join(self.thu_muc_game, TEP_NFO), tt["bap"], tt["phien_ban_max"] + 1, ma, tt["steam"])
+        os.replace(tam, os.path.join(tm, TEP_TIGER))
+        if font:
+            os.replace(tam_chung, os.path.join(tm, TEP_TIGER_GOC))
+        else:
+            tao_tiger(os.path.join(tm, TEP_TIGER_GOC), ma, [])
+        ghi_nfo(os.path.join(tm, TEP_NFO), tt["bap"], tt["phien_ban_max"] + 1, ma, tt["steam"])
         return doi
 
     def _mul_moi(self, ma, khong_dau, giong):
@@ -626,7 +658,8 @@ class ViecRottr(vcd.ViecDich):
             return self.doc_mul(ma).ghi()
 
     def go(self):
-        for t in (TEP_TIGER, TEP_TIGER_GOC, TEP_NFO, TEP_NFO + ".disabled", TEP_TIGER + ".moi.tam"):
+        for t in (TEP_TIGER, TEP_TIGER_GOC, TEP_NFO, TEP_NFO + ".disabled", TEP_TIGER + ".moi.tam",
+                  TEP_TIGER_GOC + ".moi.tam"):
             p = os.path.join(self.thu_muc_game, t)
             if os.path.isfile(p):
                 os.remove(p)
