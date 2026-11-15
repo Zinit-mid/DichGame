@@ -22,7 +22,7 @@ import viet_hoa_cd as vcd
 import viet_hoa_rottr as vrt
 import font_viet as fv
 
-PHIEN_BAN_DO = 2
+PHIEN_BAN_DO = 3
 FILE_DO = os.path.join(vcd.DU_LIEU, "rottr", "font_rottr.json")
 LOAI_BO = {1, 2, 5, 6, 9, 10, 12, 13, 15}          # rong, hoat anh, texture, am thanh, shader, vat lieu, mo hinh...
 
@@ -251,14 +251,14 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
                 if not os.path.isfile(p):
                     continue
                 try:
-                    du = doc.doan(p, vt, giai, 120)
+                    du = doc.doan(p, vt, 0, 120)      # tai nguyen bat dau o dau khoi (DecompressionOffset khong phai vi tri trong khoi)
                 except Exception:
                     continue
                 k = _tim_gfx(du)
                 if k < 0:
                     continue
                 try:
-                    toan = doc.doan(p, vt, giai, kich)
+                    toan = doc.doan(p, vt, 0, kich)
                     gfx = fv.giai_gfx(toan[k:])
                     _, the = fv.tach_the(gfx)
                     ok = any(c == 75 and la_font_latin(fv.Font3(dl)) for c, dl in the)
@@ -379,7 +379,7 @@ def chuan_bi(thu_muc, ttf, bao=lambda s: None, dung=None):
                 raise LoiFont("game đã thay đổi – xóa kết quả dò và thử lại")
             goi_id, phan, vt, _, giai = x["loc"]
             p = vrt.duong_dan_phan(g["p"], phan)
-            toan = doc.doan(p, vt, giai, x["kich"])
+            toan = doc.doan(p, vt, 0, x["kich"])
             k = _tim_gfx(toan)
             gfx_goc = toan[k:]
             L = struct.unpack_from("<I", gfx_goc, 4)[0]

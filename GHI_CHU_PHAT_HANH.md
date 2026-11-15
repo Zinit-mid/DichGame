@@ -1,3 +1,7 @@
+## Dịch Game v6.20.6
+
+- Tomb Raider: sửa lỗi không nhận ra font chữ của game (đọc sai vị trí tài nguyên). Cài có dấu sẽ thêm được chữ tiếng Việt vào font.
+
 ## Dịch Game v6.20.5
 
 - Cột menu bên trái tự rộng ra vừa đủ để hiện ĐẦY ĐỦ tên các mục (Shadow of the Tomb Raider, Tomb Raider (2013) (Steam)...), ở mọi cỡ chữ / tỉ lệ hiển thị.
