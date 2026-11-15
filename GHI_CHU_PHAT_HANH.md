@@ -1,3 +1,7 @@
+## Dịch Game v6.20.1
+
+- Sửa lỗi dò font Rise of the Tomb Raider chạy rất lâu (hàng giờ): trước đây mỗi tài nguyên trong một khối nén lớn đều bị giải nén lại từ đầu; nay mỗi khối chỉ giải nén một lần. Thanh tiến độ hiện số tài nguyên đã kiểm.
+
 ## Dịch Game v6.20.0 – Rise of the Tomb Raider: font tiếng Việt CÓ DẤU đầy đủ
 
 - Bấm "Cài Việt hóa (có dấu)" (hoặc "Cài gói thử (có dấu)"): app tự thêm chữ tiếng Việt (ă â đ ê ô ơ ư + 5 dấu, chữ hoa và thường) vào font chữ của game. Chữ được ghép từ chính kiểu chữ DIN của game nên nhìn đồng bộ.

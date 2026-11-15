@@ -15,13 +15,14 @@ import hashlib
 import json
 import os
 import struct
+import time
 import zlib
 
 import viet_hoa_cd as vcd
 import viet_hoa_rottr as vrt
 import font_viet as fv
 
-PHIEN_BAN_DO = 1
+PHIEN_BAN_DO = 2
 FILE_DO = os.path.join(vcd.DU_LIEU, "rottr", "font_rottr.json")
 LOAI_BO = {1, 2, 5, 6, 9, 10, 12, 13, 15}          # rong, hoat anh, texture, am thanh, shader, vat lieu, mo hinh...
 
@@ -37,7 +38,7 @@ class _Doc:
 
     def __init__(s):
         s.f = {}
-        s.nho = (None, None)                     # khoi vua giai nen (doc nhieu tai nguyen cung khoi)
+        s.nho = None                             # trang thai khoi dang giai nen do (xem doan)
 
     def _mo(s, p):
         f = s.f.get(p)
@@ -48,6 +49,36 @@ class _Doc:
                 s.f.clear()
             f = s.f[p] = open(p, "rb")
         return f
+
+    def doan(s, p, vt, tu, dai):
+        """Doc dai byte tu vi tri 'tu' (sau giai nen) cua khoi o vt. Giai nen DAN DAN va nho trang thai,
+        nen doc nhieu tai nguyen trong cung 1 khoi lon chi giai nen 1 lan (truoc day giai lai tu dau -> rat cham)."""
+        can = tu + dai
+        tt = s.nho if isinstance(s.nho, dict) and s.nho.get("k") == (p, vt) else None
+        if tt is None:
+            f = s._mo(p)
+            f.seek(vt)
+            dau = f.read(16)
+            if len(dau) < 16 or struct.unpack_from("<I", dau, 0)[0] != vrt.MAGIC_CDRM:
+                f.seek(vt + tu)
+                return f.read(dai)
+            so = struct.unpack_from("<i", dau, 8)[0]
+            if not 0 < so < 100000:
+                raise LoiFont("khối nén hỏng")
+            bang = f.read(8 * so)
+            tt = {"k": (p, vt), "du": bytearray(), "khuc": [struct.unpack_from("<ii", bang, 8 * i) for i in range(so)],
+                  "i": 0, "q": (vt + 16 + 8 * so + 0xF) & ~0xF}
+            s.nho = tt
+        f = s._mo(p)
+        while len(tt["du"]) < can and tt["i"] < len(tt["khuc"]):
+            goc, nen = tt["khuc"][tt["i"]]
+            goc >>= 8
+            f.seek(tt["q"])
+            b = f.read(nen)
+            tt["du"] += b if nen == goc else zlib.decompress(b)
+            tt["q"] = (tt["q"] + nen + 0xF) & ~0xF
+            tt["i"] += 1
+        return bytes(tt["du"][tu:can])
 
     def dong(s):
         for x in s.f.values():
@@ -62,8 +93,6 @@ class _Doc:
         if len(dau) < 16 or struct.unpack_from("<I", dau, 0)[0] != vrt.MAGIC_CDRM:
             f.seek(vt)
             return f.read(toi_da if toi_da is not None else (can or 0))   # du lieu khong nen
-        if s.nho[0] == (p, vt):
-            return s.nho[1]
         so = struct.unpack_from("<i", dau, 8)[0]
         if not 0 < so < 100000:
             raise LoiFont("khối nén hỏng")
@@ -77,12 +106,9 @@ class _Doc:
             b = f.read(nen)
             ra += b if nen == goc else zlib.decompress(b)
             q = (q + nen + 0xF) & ~0xF
-            if can is not None and len(ra) >= can and can <= 64:
-                break                                # chi can doc dau khoi
-        ra = bytes(ra)
-        if len(ra) < (64 << 20) and (can is None or can > 64):
-            s.nho = ((p, vt), ra)
-        return ra
+            if can is not None and len(ra) >= can:
+                break
+        return bytes(ra)
 
 
 def doc_drm(b):
@@ -209,25 +235,27 @@ def do_font(thu_muc, bao=lambda s: None, dung=None):
                 ung.setdefault(loc, kich)
         bao(f"Đang dò font chữ: kiểm tra {len(ung):,} tài nguyên...".replace(",", "."))
         font = []
+        moc = 0
         for j, (loc, kich) in enumerate(sorted(ung.items())):
             if dung is not None and dung.is_set():
                 raise LoiFont("đã dừng")
-            if j % 300 == 0:
-                bao(f"Đang dò font chữ: tài nguyên {j * 100 // max(len(ung), 1)}%...")
+            if time.time() - moc > 1.5:
+                moc = time.time()
+                bao(f"Đang dò font chữ: tài nguyên {j:,}/{len(ung):,} ({j * 100 // max(len(ung), 1)}%)...".replace(",", "."))
             goi_id, phan, vt, _, giai = loc
             for g in theo_id.get(goi_id, []):
                 p = vrt.duong_dan_phan(g["p"], phan)
                 if not os.path.isfile(p):
                     continue
                 try:
-                    du = doc.khoi(p, vt, can=giai + 120)[giai:giai + 120]
+                    du = doc.doan(p, vt, giai, 120)
                 except Exception:
                     continue
                 k = _tim_gfx(du)
                 if k < 0:
                     continue
                 try:
-                    toan = doc.khoi(p, vt, can=giai + kich)[giai:giai + kich]
+                    toan = doc.doan(p, vt, giai, kich)
                     gfx = fv.giai_gfx(toan[k:])
                     _, the = fv.tach_the(gfx)
                     ok = any(c == 75 and la_font_latin(fv.Font3(dl)) for c, dl in the)
@@ -291,7 +319,7 @@ def chuan_bi(thu_muc, ttf, bao=lambda s: None, dung=None):
                 raise LoiFont("game đã thay đổi – xóa kết quả dò và thử lại")
             goi_id, phan, vt, _, giai = x["loc"]
             p = vrt.duong_dan_phan(g["p"], phan)
-            toan = doc.khoi(p, vt, can=giai + x["kich"])[giai:giai + x["kich"]]
+            toan = doc.doan(p, vt, giai, x["kich"])
             k = _tim_gfx(toan)
             gfx_goc = toan[k:]
             L = struct.unpack_from("<I", gfx_goc, 4)[0]
