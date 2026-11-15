@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.20.4"
+APP_VERSION = "6.20.5"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -2091,6 +2091,7 @@ class App:
         # ---------- than: menu | trang
         self.than = tk.Frame(goc, bg=UI_NEN)
         menu = tk.Frame(self.than, bg=UI_CANH, width=P(250))
+        self.khung_menu = menu
         menu.pack(side="left", fill="y")
         menu.pack_propagate(False)
         tk.Frame(self.than, bg=UI_VIEN, width=1).pack(side="left", fill="y")
@@ -2104,6 +2105,7 @@ class App:
         ten = tk.Frame(logo, bg=UI_CANH)
         ten.pack(side="left", padx=(P(10), 0))
         tk.Label(ten, text="Dịch Game", bg=UI_CANH, fg="#5aa2ff", font=self._f(15, "bold"), anchor="w").pack(fill="x")
+        self.logo_menu = logo
         self.lbl_phien_ban = tk.Label(ten, text=f"v{APP_VERSION}", bg=UI_CANH, fg=UI_PHU, font=self._f(9),
                                       anchor="w", cursor="hand2")
         self.lbl_phien_ban.pack(fill="x")
@@ -2151,6 +2153,20 @@ class App:
         b = gd.NutTron(cha, ten, lambda m=ma: self._chon_trang(m), kieu="menu", bieu_tuong=bieu, trai=True)
         b.pack(fill="x", padx=self._p(10), pady=1)
         self.menu_muc[ma] = b
+        self._dat_rong_menu()
+
+    def _dat_rong_menu(self):
+        """Menu trai rong vua du de hien DU chu cua muc dai nhat (theo co chu / ti le hien thi hien tai)."""
+        P = self._p
+        try:
+            rong = max(int(float(b.cget("width"))) for b in self.menu_muc.values())
+            logo = self.logo_menu.winfo_reqwidth()
+        except Exception:
+            return
+        can = max(P(250), rong + 2 * P(10) + P(10) + P(8), logo + P(10))
+        can = min(can, max(P(250), int(self.root.winfo_screenwidth() * 0.4)))
+        if int(self.khung_menu.cget("width")) != can:
+            self.khung_menu.config(width=can)
 
     def _tao_trang(self, ma, tieu_de, mo_ta="", cuon=True):
         """Tao 1 trang trong vung noi dung. -> khung de dat noi dung."""

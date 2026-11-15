@@ -1,3 +1,7 @@
+## Dịch Game v6.20.5
+
+- Cột menu bên trái tự rộng ra vừa đủ để hiện ĐẦY ĐỦ tên các mục (Shadow of the Tomb Raider, Tomb Raider (2013) (Steam)...), ở mọi cỡ chữ / tỉ lệ hiển thị.
+
 ## Dịch Game v6.20.4
 
 - Tomb Raider: khi không tìm thấy font chữ của game, app ghi file chẩn đoán (font_chan_doan.txt) để tìm nguyên nhân.
