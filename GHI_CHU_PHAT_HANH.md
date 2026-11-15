@@ -1,3 +1,8 @@
+## Dịch Game v6.20.7
+
+- Rise of the Tomb Raider: font tiếng Việt đã chạy – menu, nhiệm vụ, chữ trong game hiện CÓ DẤU đầy đủ.
+- Phụ đề lời thoại (file phim .mul) game không nhận chữ có dấu (hiện lại tiếng Anh) → phụ đề luôn ghi không dấu để vẫn là tiếng Việt.
+
 ## Dịch Game v6.20.6
 
 - Tomb Raider: sửa lỗi không nhận ra font chữ của game (đọc sai vị trí tài nguyên). Cài có dấu sẽ thêm được chữ tiếng Việt vào font.

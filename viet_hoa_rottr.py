@@ -655,7 +655,9 @@ class ViecRottr(vcd.ViecDich):
             n = 0
             for _, d in x.phu_de():
                 en = d.get("0")
-                vi = self.chuoi_viet(en, khong_dau) if en else None
+                # Phu de phim (.mul): game bo qua phu de co chu ngoai ASCII (hien lai tieng Anh)
+                # -> luon ghi KHONG DAU cho phu de, menu / chu trong game van co dau.
+                vi = self.chuoi_viet(en, True) if en else None
                 if vi:
                     d["0"] = vi
                     if d.get("14") == en:
