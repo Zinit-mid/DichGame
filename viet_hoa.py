@@ -2079,6 +2079,10 @@ class ThuVien(App):
                     if getattr(self, "loai_rt", "rise") == "rise":
                         chu = (f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ – {sc.get('phu_de', 0):,} câu phụ đề phim – "
                                f"{sc.get('giong', 0):,} đoạn lồng tiếng ✓ Mở game để chơi.").replace(",", ".")
+                        loi = sc.get("loi_giọng", 0) + sc.get("loi_phụ đề", 0)
+                        if loi:
+                            chu += (f"\n⚠ {loi} file phim/thoại bị lỗi khi ghép (giữ phụ đề nếu được) – "
+                                    "gửi Claude để xem file loi_cai.txt.")
                     else:
                         chu = f"Đã cài Việt hóa ({kieu}): {so:,} dòng chữ ✓ Mở game để chơi.".replace(",", ".")
                 if not khong_dau and getattr(self, "loai_rt", "rise") == "rise":

@@ -615,6 +615,10 @@ class ViecRottr(vcd.ViecDich):
         du_lieu = ghi_locals(lang, khoa, moi, n)
         cac = [(BAM_LOCALS, LOCALE_EN, lambda: du_lieu)]
         self.so_cai = {"phu_de": 0, "giong": 0}
+        try:
+            os.remove(os.path.join(THU_MUC_RT, "loi_cai.txt"))
+        except OSError:
+            pass
         if not chi_thu:
             for m, t in sorted(self.mul.items()):
                 giong = self.file_giong(m)
@@ -645,8 +649,10 @@ class ViecRottr(vcd.ViecDich):
         return doi
 
     def _mul_moi(self, ma, khong_dau, giong):
-        x = self.doc_mul(ma)
-        try:
+        """File .mul moi: phu de Viet (+ giong Viet). Loi phan giong -> van giu phu de; loi ghi vao
+        %APPDATA%/VietHoaGame/rottr/loi_cai.txt de xem lai."""
+        def phu_de(x):
+            n = 0
             for _, d in x.phu_de():
                 en = d.get("0")
                 vi = self.chuoi_viet(en, khong_dau) if en else None
@@ -654,8 +660,12 @@ class ViecRottr(vcd.ViecDich):
                     d["0"] = vi
                     if d.get("14") == en:
                         d["14"] = vi
-                    self.so_cai["phu_de"] += 1
-            if giong:
+                    n += 1
+            return n
+        if giong:
+            try:
+                x = self.doc_mul(ma)
+                n = phu_de(x)
                 fsb = list(x.fsb_kenh())
                 for c, p in giong.items():
                     with open(p, "rb") as f:
@@ -664,10 +674,33 @@ class ViecRottr(vcd.ViecDich):
                         if cc is not None and cc < len(fsb):
                             fsb[cc] = rm.tao_fsb4(mp3, rm.fsb_thong_tin(fsb[cc])[0], fsb[cc])
                 x.thay_am_thanh(fsb)
+                du = x.ghi()
+                self.so_cai["phu_de"] += n
                 self.so_cai["giong"] += 1
-            return x.ghi()
+                return du
+            except Exception:
+                self._ghi_loi(ma, "giọng")
+        try:
+            x = self.doc_mul(ma)
+            n = phu_de(x)
+            du = x.ghi()
+            self.so_cai["phu_de"] += n
+            return du
         except Exception:
+            self._ghi_loi(ma, "phụ đề")
+            self.so_cai["loi"] = self.so_cai.get("loi", 0) + 1
             return self.doc_mul(ma).ghi()
+
+    def _ghi_loi(self, ma, phan):
+        import traceback
+        self.so_cai["loi_" + phan] = self.so_cai.get("loi_" + phan, 0) + 1
+        try:
+            os.makedirs(THU_MUC_RT, exist_ok=True)
+            with open(os.path.join(THU_MUC_RT, "loi_cai.txt"), "a", encoding="utf-8") as f:
+                ten = (self.mul.get(ma) or {}).get("ten", "")
+                f.write(f"--- {time.strftime('%d/%m %H:%M:%S')} {ma} {ten} ({phan})\n{traceback.format_exc()}\n")
+        except Exception:
+            pass
 
     def go(self):
         for t in (TEP_TIGER, TEP_TIGER_GOC, TEP_NFO, TEP_NFO + ".disabled", TEP_TIGER + ".moi.tam",

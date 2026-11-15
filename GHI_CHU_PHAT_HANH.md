@@ -1,3 +1,7 @@
+## Dịch Game v6.20.3
+
+- Tomb Raider: nếu ghép giọng Việt vào một đoạn thoại bị lỗi, app vẫn giữ PHỤ ĐỀ tiếng Việt cho đoạn đó (trước đây cả đoạn trở về tiếng Anh mà không báo). Lỗi được ghi vào loi_cai.txt và báo số lượng sau khi cài.
+
 ## Dịch Game v6.20.2
 
 - Tomb Raider: sửa lỗi còn vài trăm câu phụ đề "đã dịch" nhưng vẫn là tiếng Anh (máy dịch trả lại nguyên câu) – nay app dịch lại các câu này.
