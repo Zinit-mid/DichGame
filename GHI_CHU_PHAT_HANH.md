@@ -1,3 +1,9 @@
+## Dịch Game v6.20.8
+
+- Rise of the Tomb Raider: sửa phụ đề lời thoại LÚC ĐANG CHƠI còn tiếng Anh. Game lấy phụ đề này từ file chữ riêng trong các gói bản vá (update), không phải file phim – app giờ dò và Việt hóa cả các file này.
+- Phụ đề trở lại CÓ DẤU khi cài có dấu (bản 6.20.7 ép không dấu là không cần).
+- Lần đầu mở trang Rise sẽ quét thêm lời thoại (vài phút). Có câu mới → bấm Dịch, rồi Cài Việt hóa lại.
+
 ## Dịch Game v6.20.7
 
 - Rise of the Tomb Raider: font tiếng Việt đã chạy – menu, nhiệm vụ, chữ trong game hiện CÓ DẤU đầy đủ.

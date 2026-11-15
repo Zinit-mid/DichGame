@@ -25,6 +25,9 @@ THU_MUC_RT = os.path.join(vcd.DU_LIEU, "rottr")
 FILE_BO_NHO = os.path.join(THU_MUC_RT, "bo_nho_dich.json")
 FILE_MUL = os.path.join(THU_MUC_RT, "muc_luc_mul.json")      # muc luc file .mul (phu de + giong) da quet
 PHIEN_BAN_MUL = 2
+FILE_TE = os.path.join(THU_MUC_RT, "muc_luc_loi_thoai.json")   # loi thoai luc choi (file TextEntry)
+PHIEN_BAN_TE = 1
+DAU_TE = b"Version 1\r\nTextEntry"
 
 TEN_LOCALS = "pcx64-w\\local\\locals.bin"
 LOCALE_EN = 0xFFFF0001
@@ -257,8 +260,9 @@ def _thu_tu_ngon_ngu(ten_tep):
     return 0
 
 
-def goi_tieng_anh(thu_muc):
-    """Cac goi .tiger chua file tieng Anh, xep theo uu tien tang dan (goi sau de len goi truoc)."""
+def goi_tieng_anh(thu_muc, kem_chung=False):
+    """Cac goi .tiger chua file tieng Anh, xep theo uu tien tang dan (goi sau de len goi truoc).
+    kem_chung: them ca goi chung (khong ngon ngu, vd bigfile.update2.000.000.tiger)."""
     meta = {}
     for t in os.listdir(thu_muc):
         if t.endswith(".nfo") and not t.startswith("bigfile._mod."):
@@ -271,7 +275,10 @@ def goi_tieng_anh(thu_muc):
     for t in os.listdir(thu_muc):
         if not t.endswith(".000.tiger") or not t.startswith("bigfile") or t.startswith("bigfile._mod."):
             continue
-        if "_ENGLISH" not in t.upper() or "KSA_" in t.upper():
+        if "KSA_" in t.upper():
+            continue
+        if "_ENGLISH" not in t.upper() and (not kem_chung or _thu_tu_ngon_ngu(t) or
+                                             re.search(r"_[A-Z]+\.000\.tiger$", t.upper())):
             continue
         p = os.path.join(thu_muc, t)
         try:
@@ -384,6 +391,7 @@ class ViecRottr(vcd.ViecDich):
         self.goc = {}
         self.locals = None
         self.mul = {}
+        self.te = {}
 
     def nap(self, bao=lambda s: None):
         bao("Đang tìm file chữ tiếng Anh của game (locals.bin)...")
@@ -395,6 +403,12 @@ class ViecRottr(vcd.ViecDich):
         self.bang_ten = vcd.BangTen(set(TEN_RIENG))
         try:
             self.quet_mul(bao)
+        except Exception as e:
+            self.loi_mul = str(e)
+        try:
+            self.quet_loi_thoai(bao)
+        except LoiDung:
+            raise
         except Exception as e:
             self.loi_mul = str(e)
         try:
@@ -439,6 +453,105 @@ class ViecRottr(vcd.ViecDich):
             for _, en in tt["pd"]:
                 if en:
                     yield en
+        for tt in (getattr(self, "te", None) or {}).values():
+            yield from self.doan_te(tt["en"])
+
+    # ---------------------------------------------------------- loi thoai luc choi (TextEntry)
+    # Phu de loi thoai khi dang choi game lay tu file chu "Version 1 / TextEntry" (nam trong goi CHUNG,
+    # vd bigfile.update2.000.000.tiger), KHONG lay tu file .mul. Dong:  lang_english <ngay> <gio> "chu"
+    # Chu gom nhieu cau noi bang moc thoi gian "\(2.46)".
+    TE_DONG = re.compile(r'(?m)^(lang_english\b[^"\r\n]*")(.*)("[ \t]*\r?)$')
+    TE_MOC = re.compile(r"(\\\(\d+(?:\.\d+)?\))")
+
+    @classmethod
+    def doc_te(cls, b):
+        """-> chu tieng Anh cua file TextEntry (None neu khong co)."""
+        m = cls.TE_DONG.search(b.decode("utf-8", "replace"))
+        return m.group(2) if m else None
+
+    def doan_te(self, en):
+        for i, d in enumerate(self.TE_MOC.split(en or "")):
+            if i % 2 == 0 and d.strip():
+                yield d.strip()
+
+    def te_viet(self, en, khong_dau):
+        """Chu Viet cho 1 dong TextEntry (giu moc thoi gian); None neu chua dich duoc cau nao."""
+        ra, doi = [], False
+        for i, d in enumerate(self.TE_MOC.split(en)):
+            if i % 2 == 0 and d.strip():
+                vi = self.chuoi_viet(d.strip(), khong_dau)
+                if vi:
+                    d = d[:len(d) - len(d.lstrip())] + vi + d[len(d.rstrip()):]
+                    doi = True
+            ra.append(d)
+        return "".join(ra) if doi else None
+
+    def _te_moi(self, ma, khong_dau):
+        tt = self.te[ma]
+        s = doc_tep_tiger(os.path.join(self.thu_muc_game, tt["goi"]), tt["muc"]).decode("utf-8", "replace")
+        m = self.TE_DONG.search(s)
+        vi = self.te_viet(m.group(2), khong_dau) if m else None
+        if vi is None:
+            return None
+        return (s[:m.start(2)] + vi.replace('"', "'") + s[m.end(2):]).encode("utf-8")
+
+    def quet_loi_thoai(self, bao=lambda s: None):
+        """Muc luc file TextEntry (phu de loi thoai luc choi) dang duoc game dung. Luu dem vao FILE_TE."""
+        goi = goi_tieng_anh(self.thu_muc_game, kem_chung=True)
+        dau_van = [[os.path.basename(p), os.path.getsize(p), int(os.path.getmtime(p))] for _, p, _ in goi]
+        try:
+            with open(FILE_TE, encoding="utf-8") as f:
+                cu = json.load(f)
+            if cu.get("ban") == PHIEN_BAN_TE and cu.get("goi") == dau_van and \
+                    os.path.normcase(cu.get("game", "")) == os.path.normcase(self.thu_muc_game):
+                self.te = cu["te"]
+                return self.te
+        except Exception:
+            pass
+        chon = {}
+        for _, p, ds in goi:
+            for muc in ds:
+                if (muc["locale"] == 0xFFFFFFFF or muc["locale"] & 1) and 40 <= muc["co"] <= 0x40000:
+                    chon[muc["bam"]] = (p, muc)
+        kq, n, mo = {}, 0, {}
+        try:
+            for bam, (p, muc) in sorted(chon.items(), key=lambda x: (x[1][0], x[1][1]["phan"], x[1][1]["vt"])):
+                n += 1
+                if n % 2000 == 0:
+                    bao(f"Đang quét lời thoại lúc chơi: {n:,}/{len(chon):,} file".replace(",", "."))
+                    if self.dung.is_set():
+                        raise LoiDung("đã dừng")
+                k = (p, muc["phan"])
+                f = mo.get(k)
+                if f is None:
+                    f = mo[k] = open(duong_dan_phan(p, muc["phan"]), "rb")
+                f.seek(muc["vt"])
+                dau = f.read(len(DAU_TE))
+                if dau != DAU_TE:
+                    if dau[:4] != struct.pack("<I", MAGIC_CDRM):
+                        continue
+                    try:
+                        b = doc_tep_tiger(p, muc)
+                    except Exception:
+                        continue
+                    if not b.startswith(DAU_TE):
+                        continue
+                else:
+                    f.seek(muc["vt"])
+                    b = f.read(muc["co"])
+                en = self.doc_te(b)
+                if en and en.strip():
+                    kq[f"{bam:08x}"] = {"goi": os.path.basename(p), "muc": muc, "en": en}
+        finally:
+            for f in mo.values():
+                f.close()
+        os.makedirs(THU_MUC_RT, exist_ok=True)
+        with open(FILE_TE + ".tam", "w", encoding="utf-8") as f:
+            json.dump({"ban": PHIEN_BAN_TE, "game": self.thu_muc_game, "goi": dau_van, "te": kq}, f,
+                      ensure_ascii=False)
+        os.replace(FILE_TE + ".tam", FILE_TE)
+        self.te = kq
+        return kq
 
     def quet_mul(self, bao=lambda s: None):
         """Muc luc moi file .mul tieng Anh dang duoc game dung (goi uu tien cao nhat) co phu de.
@@ -625,6 +738,10 @@ class ViecRottr(vcd.ViecDich):
                 if giong or any(self.chuoi_viet(en, khong_dau) for _, en in t["pd"] if en):
                     cac.append((int(m, 16), t["muc"]["locale"],
                                 lambda m=m, giong=giong: self._mul_moi(m, khong_dau, giong)))
+            for m, t in sorted((getattr(self, "te", None) or {}).items()):
+                if self.te_viet(t["en"], khong_dau):
+                    cac.append((int(m, 16), t["muc"]["locale"],
+                                lambda m=m: self._te_or_goc(m, khong_dau)))
         if not doi and len(cac) == 1:
             raise LoiDung("chưa có câu nào được dịch – bấm Dịch trước")
         tm = self.thu_muc_game
@@ -648,6 +765,17 @@ class ViecRottr(vcd.ViecDich):
         ghi_nfo(os.path.join(tm, TEP_NFO), tt["bap"], tt["phien_ban_max"] + 1, ma, tt["steam"])
         return doi
 
+    def _te_or_goc(self, ma, khong_dau):
+        try:
+            b = self._te_moi(ma, khong_dau)
+            if b is not None:
+                self.so_cai["loi_thoai"] = self.so_cai.get("loi_thoai", 0) + 1
+                return b
+        except Exception:
+            self._ghi_loi(ma, "lời thoại")
+        tt = self.te[ma]
+        return doc_tep_tiger(os.path.join(self.thu_muc_game, tt["goi"]), tt["muc"])
+
     def _mul_moi(self, ma, khong_dau, giong):
         """File .mul moi: phu de Viet (+ giong Viet). Loi phan giong -> van giu phu de; loi ghi vao
         %APPDATA%/VietHoaGame/rottr/loi_cai.txt de xem lai."""
@@ -655,9 +783,7 @@ class ViecRottr(vcd.ViecDich):
             n = 0
             for _, d in x.phu_de():
                 en = d.get("0")
-                # Phu de phim (.mul): game bo qua phu de co chu ngoai ASCII (hien lai tieng Anh)
-                # -> luon ghi KHONG DAU cho phu de, menu / chu trong game van co dau.
-                vi = self.chuoi_viet(en, True) if en else None
+                vi = self.chuoi_viet(en, khong_dau) if en else None
                 if vi:
                     d["0"] = vi
                     if d.get("14") == en:
