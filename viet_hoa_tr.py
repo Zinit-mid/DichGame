@@ -13,8 +13,10 @@ Dinh dang tham khao tu TR Reboot Mod Tools (arcusmaximus, giay phep MIT).
 
 import json
 import os
+import re
 import shutil
 import struct
+import unicodedata
 import zlib
 
 import viet_hoa_cd as vcd
@@ -28,6 +30,11 @@ TEN_MARKER_TR13 = "viethoa_dichgame_tr2013.txt"
 PATCH2 = "patch2.000.tiger"
 PATCH2_GOC = "bigfile._orig.patch2.000.tiger"
 ID_PATCH2 = 67
+# Long tieng TR2013: giong Viet ghi vao goi tieng Anh rong "patch2_ENGLISH" (goi uu tien cao nhat cua game)
+GIONG_TR13 = "patch2_ENGLISH.000.tiger"
+GIONG_TR13_GOC = "bigfile._orig.patch2_ENGLISH.000.tiger"
+MARKER_GIONG = "viethoa_dichgame_tr2013_giong.txt"
+LA_VIET = re.compile(r"[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]", re.I)
 
 LOAI = {
     "tr2013": {"ten": "Tomb Raider (2013)", "ban": 3, "nen": "pc-w", "thu_muc": "tr2013",
@@ -378,6 +385,38 @@ def tao_patch2(thu_muc, them, bao=lambda s: None):
         f.write("Dich Game: patch2.000.tiger da duoc thay bang ban Viet hoa. Ban goc: " + PATCH2_GOC + "\n")
 
 
+def tao_tiger_v3(duong_dan, ma, hang, bao=lambda s: None):
+    """Goi .tiger v3 (TR2013). hang: [(bam, loc, co, goi_cu | None, ham_lay_bytes | None)] – goi_cu: file nam o goi khac
+    (giu nguyen con tro). Ghi ra file tam roi thay."""
+    hang = sorted(hang, key=lambda x: (x[0], x[1]))
+    tong = len(hang)
+    dau = struct.pack("<5i", MAGIC_TIGER, 3, 1, tong, ma) + b"pc-w".ljust(0x20, b"\0")
+    bang = bytearray(16 * tong)
+    tam = duong_dan + ".viethoa_tam"
+    with open(tam, "wb") as f:
+        f.write(dau + bytes(bang))
+        vt = len(dau) + len(bang)
+        for i, (bam, loc, co, goi, ham) in enumerate(hang):
+            if goi is None:
+                dem = (-vt) % 0x800
+                f.write(b"\0" * dem)
+                vt += dem
+                du = ham()
+                if vt + len(du) > 0xFFFFF800:
+                    raise LoiDung("gói vượt 4 GB")
+                goi = vt | (ma << 4)
+                f.write(du)
+                vt += len(du)
+                co = len(du)
+            struct.pack_into("<IIII", bang, 16 * i, bam, loc, co, goi)
+            if i % 200 == 0:
+                bao(f"Đang ghi gói giọng Việt: {i:,}/{tong:,} file".replace(",", "."))
+        f.write(b"\0" * ((-vt) % 0x800))
+        f.seek(len(dau))
+        f.write(bytes(bang))
+    os.replace(tam, duong_dan)
+
+
 def tep_mod_shadow(thu_muc):
     return [t for t in os.listdir(thu_muc) if t.startswith(f"bigfile._mod.{TEN_MOD}.")
             or t.startswith(f"_mod.{TEN_MOD}.")]
@@ -435,7 +474,16 @@ class ViecTr(vrt.ViecRottr):
             chuoi = self.locals[2]
         self.goc = chuoi
         self.bang_ten = vcd.BangTen(set(TEN_RIENG[self.loai]))
+        v = [x for x in chuoi.values() if x]
+        # game da cai ban Viet hoa cua nguoi khac (vd viethoagame.com cho TR2013) -> chu da la tieng Viet
+        self.co_viet_hoa_san = bool(v) and sum(1 for x in v if LA_VIET.search(x)) > 0.3 * len(v)
         self.mul = {}
+        try:
+            self.quet_mul(bao)
+        except LoiDung:
+            raise
+        except Exception as e:
+            self.loi_mul = str(e)
         try:
             with open(self.file_bo_nho, encoding="utf-8") as f:
                 self.bo_nho = json.load(f)
@@ -452,11 +500,193 @@ class ViecTr(vrt.ViecRottr):
             f.write(du_lieu)
         os.replace(tam, self.file_bo_nho)
 
+    # ---------------------------------------------------------- long tieng (TR2013)
+    def nen_dich(self, f, v, dot=None):
+        if LA_VIET.search(v or ""):
+            return False                  # da la tieng Viet (ban Viet hoa co san) -> khong dich lai
+        return super().nen_dich(f, v, dot)
+
+    def chuoi_viet(self, en, khong_dau=False, goc=False):
+        if en and LA_VIET.search(en):     # phu de / chu da la tieng Viet
+            vi = unicodedata.normalize("NFC", en)
+            return vi if goc or not khong_dau else vrt.bo_dau(vi)
+        return super().chuoi_viet(en, khong_dau, goc)
+
+    def thu_muc_giong(self):
+        return os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "TR2013")
+
     def quet_mul(self, bao=lambda s: None):
+        """TR2013: muc luc file .mul tieng Anh (giong + phu de) dang duoc game dung. Luu dem trong thu muc app."""
         self.mul = {}
+        if self.loai != "tr2013":
+            return self.mul
+        tm = self.thu_muc_game
+        goi = []
+        for t in sorted(os.listdir(tm)):
+            tl = t.lower()
+            if not tl.endswith("_english.000.tiger") or tl.startswith("bigfile._"):
+                continue
+            p = os.path.join(tm, t)
+            if t == GIONG_TR13 and os.path.isfile(os.path.join(tm, GIONG_TR13_GOC)):
+                p = os.path.join(tm, GIONG_TR13_GOC)        # goi hien tai la goi giong cua app -> doc ban goc
+            try:
+                dau, ds = doc_tiger(p)
+            except Exception:
+                continue
+            goi.append((dau["id"], p, ds))
+        goi.sort(key=lambda x: x[0])
+        dau_van = [[os.path.basename(p), os.path.getsize(p), int(os.path.getmtime(p))] for _, p, _ in goi]
+        tep = os.path.join(self.tm, "muc_luc_mul.json")
+        try:
+            with open(tep, encoding="utf-8") as f:
+                cu = json.load(f)
+            if cu.get("ban") == 1 and cu.get("goi") == dau_van:
+                self.mul = cu["mul"]
+                return self.mul
+        except Exception:
+            pass
+        chon = {}
+        for _, p, ds in goi:
+            for muc in ds:
+                if _la_anh("tr2013", muc["locale"]) and muc["co"] >= 0x2010:
+                    chon[muc["bam"]] = (p, muc)
+        rm = vrt.rm
+        kq, n = {}, 0
+        for bam, (p, muc) in chon.items():
+            n += 1
+            if n % 300 == 0:
+                bao(f"Đang quét lời thoại: {n:,}/{len(chon):,} file".replace(",", "."))
+                if self.dung.is_set():
+                    raise LoiDung("đã dừng")
+            try:
+                with open(vrt.duong_dan_phan(p, muc["phan"]), "rb") as f:
+                    f.seek(muc["vt"])
+                    dau = f.read(rm.HDR.size)
+                if struct.unpack_from("<I", dau, 0)[0] == MAGIC_CDRM:
+                    dau = doc_du_lieu(p, muc)
+                if struct.unpack_from("<i", dau, 0)[0] != 44100 or not rm.HDR.unpack_from(dau, 0)[9]:
+                    continue
+                x = rm.Mul(doc_du_lieu(p, muc))
+            except Exception:
+                continue
+            pd = [[x.goi[i][1].khung, d.get("0", "")] for i, d in x.phu_de()]
+            if not any(en for _, en in pd):
+                continue
+            tt = {"goi": os.path.basename(p), "muc": muc, "k": x.so_kenh, "phim": x.co_phim, "pd": pd,
+                  "ten": "", "mau": 0}
+            try:
+                loai = list(x.hdr[-1][:x.so_kenh])
+                kenh = []
+                for c, fsb in enumerate(x.fsb_kenh()):
+                    ten, so, _ = rm.fsb_thong_tin(fsb)
+                    kenh.append([loai[c], ten, so])
+                tt["kenh"] = kenh
+                tt["ten"], tt["mau"] = kenh[0][1], kenh[0][2]
+            except Exception:
+                pass
+            kq[f"{bam:08x}"] = tt
+        os.makedirs(self.tm, exist_ok=True)
+        with open(tep + ".tam", "w", encoding="utf-8") as f:
+            json.dump({"ban": 1, "goi": dau_van, "mul": kq}, f, ensure_ascii=False)
+        os.replace(tep + ".tam", tep)
+        self.mul = kq
+        return kq
+
+    def doc_mul(self, ma):
+        tt = self.mul[ma]
+        return vrt.rm.Mul(doc_du_lieu(os.path.join(self.thu_muc_game, tt["goi"]), tt["muc"]))
 
     def thong_ke_mul(self):
-        return {"cau": 0, "da_dich": 0, "giong": 0, "da_long": 0}
+        if self.loai != "tr2013":
+            return {"cau": 0, "da_dich": 0, "giong": 0, "da_long": 0}
+        return super().thong_ke_mul()
+
+    def _mau_lara_rise(self):
+        """Lara TR2013 dung lai giong mau Lara da duyet o Rise (giong nguoi dung tu ghi am)."""
+        ra = self._mau("lara")
+        if os.path.isfile(ra):
+            return
+        ten = os.path.join("DichGame_LongTieng", "RotTR", "mau", f"lara.{self.BAN_MAU}.wav")
+        cac = [os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "RotTR", "mau",
+                            f"lara.{self.BAN_MAU}.wav")] + [f"{o}:\\{ten}" for o in "CDEFGHIJK"]
+        for p in cac:
+            if os.path.isfile(p):
+                os.makedirs(os.path.dirname(ra), exist_ok=True)
+                shutil.copyfile(p, ra)
+                return
+
+    def long_tieng(self, *a, **k):
+        if self.loai != "tr2013":
+            raise LoiDung("lồng tiếng chưa hỗ trợ game này")
+        self._mau_lara_rise()
+        return super().long_tieng(*a, **k)
+
+    def da_cai_giong(self):
+        return os.path.isfile(os.path.join(self.thu_muc_game, MARKER_GIONG))
+
+    def _mul_giong(self, ma):
+        rm = vrt.rm
+        x = self.doc_mul(ma)
+        fsb = list(x.fsb_kenh())
+        for c, p in self.file_giong(ma).items():
+            with open(p, "rb") as f:
+                mp3 = f.read()
+            if c < len(fsb):
+                fsb[c] = rm.tao_fsb4(mp3, rm.fsb_thong_tin(fsb[c])[0], fsb[c])
+        x.thay_am_thanh(fsb)
+        return x.ghi()
+
+    def cai_giong(self, bao=lambda s: None):
+        """Ghi cac file .mul da long tieng vao patch2_ENGLISH.000.tiger (giu ban goc). -> so file."""
+        tm = self.thu_muc_game
+        hien = os.path.join(tm, GIONG_TR13)
+        goc = os.path.join(tm, GIONG_TR13_GOC)
+        if not os.path.isfile(goc):
+            if not os.path.isfile(hien):
+                raise LoiDung(f"không thấy file {GIONG_TR13} trong thư mục game")
+            shutil.copy2(hien, goc)
+        dau, cu = doc_tiger(goc)
+        ma = dau["id"]
+        moi = {}
+        for m, t in self.mul.items():
+            if self.file_giong(m):
+                moi[(t["muc"]["bam"], t["muc"]["locale"])] = m
+        if not moi:
+            raise LoiDung("chưa có đoạn thoại nào được lồng tiếng – bấm Lồng tiếng trước")
+        self.so_cai = {"giong": 0, "loi": 0}
+
+        def lay(m):
+            try:
+                b = self._mul_giong(m)
+                self.so_cai["giong"] += 1
+                return b
+            except Exception:
+                self._ghi_loi(m, "giọng")
+                self.so_cai["loi"] += 1
+                return self.doc_mul(m).ghi()
+        hang = []
+        for m in cu:
+            if (m["bam"], m["locale"]) in moi:
+                continue
+            if m["id"] != ma:
+                hang.append((m["bam"], m["locale"], m["co"], m["vt"] | (m["id"] << 4) | m["phan"], None))
+            else:
+                hang.append((m["bam"], m["locale"], m["co"], None, lambda m=m: doc_du_lieu(goc, m, tho=True)))
+        for (bam, loc), m in moi.items():
+            hang.append((bam, loc, 0, None, lambda m=m: lay(m)))
+        tao_tiger_v3(hien, ma, hang, bao)
+        with open(os.path.join(tm, MARKER_GIONG), "w", encoding="utf-8") as f:
+            f.write("Dich Game: " + GIONG_TR13 + " chua giong long tieng Viet. Ban goc: " + GIONG_TR13_GOC + "\n")
+        return self.so_cai["giong"]
+
+    def go_giong(self):
+        tm = self.thu_muc_game
+        goc = os.path.join(tm, GIONG_TR13_GOC)
+        if os.path.isfile(goc):
+            shutil.copy2(goc, os.path.join(tm, GIONG_TR13))
+        mk = os.path.join(tm, MARKER_GIONG)
+        if os.path.isfile(mk):
+            os.remove(mk)
 
     def da_cai(self):
         return da_cai_nhanh(self.thu_muc_game, self.loai)

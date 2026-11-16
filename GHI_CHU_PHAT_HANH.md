@@ -1,3 +1,12 @@
+## Dịch Game v6.21.0
+
+- Tomb Raider (2013): thêm LỒNG TIẾNG VIỆT cho lời thoại lúc chơi (Bước 4 trong trang game).
+  - Đọc thẳng phụ đề tiếng Việt có sẵn trong game (bản Việt hóa của nhóm khác) – không tốn tiền dịch.
+  - Lara dùng giọng mẫu đã duyệt ở Rise of the Tomb Raider; nhân vật khác lấy giọng mẫu từ giọng gốc.
+  - Nút "Cài giọng Việt vào game" / "Gỡ giọng Việt" (ghi vào patch2_ENGLISH, giữ bản gốc).
+  - Cắt cảnh (giọng trộn với nhạc) chưa lồng – làm ở bản sau.
+- Game đã có Việt hóa sẵn: app nhận ra và không dịch lại chữ tiếng Việt.
+
 ## Dịch Game v6.20.8
 
 - Rise of the Tomb Raider: sửa phụ đề lời thoại LÚC ĐANG CHƠI còn tiếng Anh. Game lấy phụ đề này từ file chữ riêng trong các gói bản vá (update), không phải file phim – app giờ dò và Việt hóa cả các file này.

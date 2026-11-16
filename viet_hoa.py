@@ -1898,17 +1898,21 @@ class ThuVien(App):
         self._nut(hang3, "Cài Việt hóa (không dấu)", lambda: self._rt_cai(False, True)).pack(side="left", padx=6)
         self._nut(hang3, "Gỡ Việt hóa", self._rt_go).pack(side="left")
         self._nut(hang3, "Dò font của game", self._rt_do_font, nho=True).pack(side="left", padx=6)
-        if loai != "rise":
+        if loai not in ("rise", "tr2013"):
             nhan("• Phụ đề phim và lồng tiếng: hiện chỉ có cho Rise of the Tomb Raider. Với game này app Việt hóa "
                  "toàn bộ chữ trong game (menu, nhật ký, hướng dẫn, phụ đề nằm trong file chữ).", UI_PHU, 9).pack(
                 fill="x", pady=(12, 0))
         else:
             tk.Label(w, text="BƯỚC 4 – LỒNG TIẾNG VIỆT (cần app VieNeu bản GPU)", bg=UI_NEN, fg=UI_VANG,
                      font=ft(9, "bold"), anchor="w").pack(fill="x", pady=(12, 2))
-            nhan("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
-                 "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
-                 "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game (app tự dịch trước) → bấm Cài Việt hóa → vào game nghe thử. "
-                 "Chạy lại = làm tiếp.",
+            nhan(("• Lời thoại trong lúc chơi (Lara, Roth, Sam, Reyes, lính...) được VieNeu đọc theo phụ đề tiếng Việt, "
+                  "giọng giống nhân vật gốc (Lara dùng giọng mẫu đã duyệt ở Rise). Cắt cảnh (giọng trộn với nhạc): chưa lồng.\n"
+                  "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game → bấm \"Cài giọng Việt vào game\" → vào game nghe thử. "
+                  "Chạy lại = làm tiếp. Gỡ giọng Việt = trả lại file gốc.") if loai == "tr2013" else
+                 ("• Lời thoại trong lúc chơi (Lara, Jonah, Nadia, lính...) được VieNeu đọc lại bằng giọng giống "
+                  "nhân vật gốc, đặt đúng thời điểm phụ đề. Đoạn phim nhiều kênh âm thanh: chỉ Việt hóa phụ đề, giữ giọng gốc.\n"
+                  "• Làm GÓI THỬ trước: 10 đoạn thoại đầu game (app tự dịch trước) → bấm Cài Việt hóa → vào game nghe thử. "
+                  "Chạy lại = làm tiếp."),
                  UI_PHU, 9).pack(fill="x")
             self.rt_lt = nhan("", UI_CHU, 10)
             self.rt_lt.pack(fill="x", pady=(4, 0))
@@ -1929,6 +1933,11 @@ class ThuVien(App):
             self._nut(hang4, "Lồng tiếng tất cả", lambda: self._rt_long_tieng(False)).pack(side="left", padx=6)
             self._nut(hang4, "Tạm dừng", self._rt_dung).pack(side="left")
             self._nut(hang4, "Xóa giọng đã tạo", self._rt_xoa_giong, nho=True).pack(side="left", padx=6)
+            if loai == "tr2013":
+                hang5 = tk.Frame(w, bg=UI_NEN)
+                hang5.pack(fill="x", pady=(2, 4))
+                self._nut(hang5, "Cài giọng Việt vào game", self._rt_cai_giong, chinh=True).pack(side="left")
+                self._nut(hang5, "Gỡ giọng Việt", self._rt_go_giong).pack(side="left", padx=6)
         self.rt_tien_do = nhan("", UI_VANG, 10)
         self.rt_tien_do.pack(fill="x", pady=(8, 0))
         self.rt_viec = None
@@ -1987,6 +1996,12 @@ class ThuVien(App):
                     + ("" if vcd.doc_khoa_claude() else
                        "\n⚠ Chưa có mã Claude: bấm Cài đặt → Claude AI, dán mã rồi bấm Lưu mã."))
         trang = "\nĐang cài trong game: " + ("CÓ gói Việt hóa ✓" if viec.da_cai() else "chưa")
+        if getattr(viec, "co_viet_hoa_san", False):
+            dau = ("Game đã có sẵn bản Việt hóa chữ (của nhóm khác) ✓ – KHÔNG cần Bước 1–3, chỉ làm Bước 4 lồng tiếng.\n")
+            duoi = ""
+            trang = ""
+        if hasattr(viec, "da_cai_giong"):
+            trang += "\nGiọng Việt trong game: " + ("ĐÃ CÀI ✓" if viec.da_cai_giong() else "chưa cài")
         self.rt_tk.config(fg=UI_CHU, text=dau.replace(",", ".") + duoi.replace(f"{usd * 26000:,.0f}", f"{usd * 26000:,.0f}".replace(",", ".")) + trang)
         try:
             m = viec.thong_ke_mul()
@@ -2132,11 +2147,13 @@ class ThuVien(App):
                 if kq is None:
                     chu, mau = "Đã tạm dừng – bấm lại để làm tiếp.", UI_VANG
                 elif thu:
-                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại đầu game ✓\nBấm \"Cài Việt hóa (không dấu)\" (tắt game trước), "
+                    nut = "Cài giọng Việt vào game" if hasattr(viec, "cai_giong") else "Cài Việt hóa (không dấu)"
+                    chu = (f"Xong gói thử: {kq['file']} đoạn thoại đầu game ✓\nBấm \"{nut}\" (tắt game trước), "
                            f"rồi vào game nghe thử. Giọng nằm ở {viec.thu_muc_giong()}")
                 else:
+                    nut = "Cài giọng Việt vào game" if hasattr(viec, "cai_giong") else "Cài Việt hóa"
                     chu = (f"Lồng tiếng xong: thêm {kq['file']:,} đoạn, tổng {kq['da_co']:,}/{kq.get('tong', kq['da_co']):,} ✓ "
-                           f"Bấm \"Cài Việt hóa\" để đưa giọng vào game.").replace(",", ".")
+                           f"Bấm \"{nut}\" để đưa giọng vào game.").replace(",", ".")
             except Exception as e:
                 chu, mau = f"Lỗi lồng tiếng: {e}", UI_LOI
             finally:
@@ -2149,6 +2166,49 @@ class ThuVien(App):
                                         self.rt_nut_lt.config(text="Lồng tiếng thử (10 câu đầu game)"),
                                         self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
         threading.Thread(target=chay, daemon=True).start()
+
+    def _rt_cai_giong(self):
+        """TR2013: ghi cac doan da long tieng vao game (patch2_ENGLISH)."""
+        if self.rt_viec is None or self.rt_dang_chay:
+            return
+        viec = self.rt_viec
+        self.rt_dang_chay = True
+        self.rt_tien_do.config(text="Đang cài giọng Việt vào game (tắt game trước)...", fg=UI_VANG)
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.rt_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            giu = False
+            try:
+                if os.name == "nt":
+                    giu = bool(ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001))
+                so = viec.cai_giong(bao)
+                chu, mau = f"Đã cài giọng Việt: {so:,} đoạn thoại ✓ Mở game để nghe.".replace(",", "."), UI_XANH
+                if viec.so_cai.get("loi"):
+                    chu += f"\n⚠ {viec.so_cai['loi']} đoạn bị lỗi khi ghép (giữ giọng gốc)."
+            except Exception as e:
+                chu, mau = f"Không cài được giọng: {_loi_quyen(e)}", UI_LOI
+            finally:
+                if giu:
+                    try:
+                        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000)
+                    except Exception:
+                        pass
+            self.q.put(("goi", lambda: (setattr(self, "rt_dang_chay", False),
+                                        self.rt_tien_do.config(text=chu, fg=mau), self._rt_da_nap(viec))))
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _rt_go_giong(self):
+        if self.rt_viec is None or self.rt_dang_chay:
+            return
+        try:
+            self.rt_viec.go_giong()
+        except Exception as e:
+            self.rt_tien_do.config(text=f"Không gỡ được: {_loi_quyen(e)}", fg=UI_LOI)
+            return
+        self.rt_tien_do.config(text="Đã gỡ giọng Việt – game trở lại giọng gốc ✓", fg=UI_XANH)
+        self._rt_da_nap(self.rt_viec)
 
     def _rt_chon_am(self, v):
         self.rt_am = v
