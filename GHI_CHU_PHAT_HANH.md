@@ -1,3 +1,9 @@
+## Dịch Game v6.21.1
+
+- Tomb Raider (2013): giọng Lara lấy mẫu từ giọng tiếng Anh gốc của Lara trong game (không dùng giọng Rise nữa).
+- Giọng Việt to, rõ hơn: đoạn nhân vật gốc nói thì thào vẫn có giọng Việt đủ nghe.
+- Các đoạn đã lồng bằng giọng cũ được làm lại tự động khi bấm Lồng tiếng.
+
 ## Dịch Game v6.21.0
 
 - Tomb Raider (2013): thêm LỒNG TIẾNG VIỆT cho lời thoại lúc chơi (Bước 4 trong trang game).

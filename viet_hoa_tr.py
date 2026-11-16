@@ -601,24 +601,26 @@ class ViecTr(vrt.ViecRottr):
             return {"cau": 0, "da_dich": 0, "giong": 0, "da_long": 0}
         return super().thong_ke_mul()
 
-    def _mau_lara_rise(self):
-        """Lara TR2013 dung lai giong mau Lara da duyet o Rise (giong nguoi dung tu ghi am)."""
-        ra = self._mau("lara")
-        if os.path.isfile(ra):
-            return
-        ten = os.path.join("DichGame_LongTieng", "RotTR", "mau", f"lara.{self.BAN_MAU}.wav")
-        cac = [os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "RotTR", "mau",
-                            f"lara.{self.BAN_MAU}.wav")] + [f"{o}:\\{ten}" for o in "CDEFGHIJK"]
-        for p in cac:
-            if os.path.isfile(p):
-                os.makedirs(os.path.dirname(ra), exist_ok=True)
-                shutil.copyfile(p, ra)
-                return
+    # v3: Lara lay giong mau tu giong tieng Anh goc cua TR2013 (khong dung giong Rise nua);
+    # giong Viet co do to toi thieu (doan Lara noi tham trong hang van ro)
+    BAN_MAU = "v3"
+    SAN_GIONG = 0.07
 
     def long_tieng(self, *a, **k):
         if self.loai != "tr2013":
             raise LoiDung("lồng tiếng chưa hỗ trợ game này")
-        self._mau_lara_rise()
+        lv = self.thu_muc_giong()
+        dau = os.path.join(lv, "ban_mau.txt")
+        try:
+            with open(dau, encoding="utf-8") as f:
+                cu = f.read().strip()
+        except OSError:
+            cu = ""
+        if cu != self.BAN_MAU:                  # doi cach tao giong -> bo cac doan da long bang giong cu
+            shutil.rmtree(os.path.join(lv, "mp3"), ignore_errors=True)
+            os.makedirs(lv, exist_ok=True)
+            with open(dau, "w", encoding="utf-8") as f:
+                f.write(self.BAN_MAU)
         return super().long_tieng(*a, **k)
 
     def da_cai_giong(self):

@@ -862,6 +862,7 @@ class ViecRottr(vcd.ViecDich):
         return os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "RotTR")
 
     BAN_MAU = "v2"           # doi khi doi cach chon giong mau -> tao lai giong mau + doc lai
+    SAN_GIONG = 0.0          # do to toi thieu (RMS) cua giong Viet khi ghep; 0 = theo giong goc
 
     def _mau(self, g):
         return os.path.join(self.thu_muc_giong(), "mau", f"{g}.{self.BAN_MAU}.wav")
@@ -1144,7 +1145,8 @@ class ViecRottr(vcd.ViecDich):
             for c, ds in theo_kenh.items():
                 viec.append({"goc": self._xuat_mp3_goc(m, c, goc_dir), "so_mau": t["kenh"][c][2],
                              "ra": self._ten_mp3(m, c), "cau": ds})
-        if viec and not self._chay_kich_ban("rt_ghep", KICH_BAN_RT, {"che_do": "ghep", "ds": viec, "tang_db": tang_db}, py, hf, bao,
+        if viec and not self._chay_kich_ban("rt_ghep", KICH_BAN_RT, {"che_do": "ghep", "ds": viec, "tang_db": tang_db,
+                                                                     "san": self.SAN_GIONG}, py, hf, bao,
                                             "Bước 4/4: đã ghép"):
             return None
         xong = len({os.path.basename(v["ra"]).split("_")[0].split(".")[0] for v in viec if os.path.isfile(v["ra"])})
@@ -1242,6 +1244,7 @@ else:
     except Exception:
         librosa = None
     tang = 10 ** (float(viec.get("tang_db", 0)) / 20)
+    san = float(viec.get("san", 0))
 
     def dam(y):
         # giong chac hon: bo am tram duoi 100 Hz, tang nhe dai 2-6 kHz (ro chu), nen dinh mem
@@ -1280,8 +1283,9 @@ else:
             y = dam(y)
             g = goc[a:b]
             r0, r1 = rms(g[np.abs(g) > 0.01]), rms(y[np.abs(y) > 0.01])
+            r0 = max(r0, san)                 # goc noi tham -> giong Viet van du ro
             if r0 > 1e-3 and r1 > 1e-3:
-                y = y * min(r0 / r1, 4.0)
+                y = y * min(r0 / r1, 6.0)
             y = y * tang
             y = (np.tanh(1.5 * y) / 1.5).astype(np.float32)      # nen dinh: to ma khong vo tieng
             ra[a:b] = 0
