@@ -621,7 +621,53 @@ class ViecTr(vrt.ViecRottr):
             os.makedirs(lv, exist_ok=True)
             with open(dau, "w", encoding="utf-8") as f:
                 f.write(self.BAN_MAU)
+        self._dung_giong_rieng()
         return super().long_tieng(*a, **k)
+
+    def _dung_giong_rieng(self):
+        """Giong mau nguoi dung gui: <o>:\\DichGame_LongTieng\\giong_rieng\\phan_bo.json {"TR2013": {nguoi_noi: file.wav}}.
+        Doi file -> chep lam giong mau, xoa cau da doc + doan da long cua nguoi do de lam lai."""
+        import hashlib
+        goc = None
+        cac = [os.path.join(vcd.ViecDich.thu_muc_lam_viec(self.thu_muc_game), "giong_rieng")] + \
+              [f"{o}:\\DichGame_LongTieng\\giong_rieng" for o in "CDEFGHIJK"]
+        for d in cac:
+            try:
+                with open(os.path.join(d, "phan_bo.json"), encoding="utf-8") as f:
+                    pb = json.load(f).get("TR2013")
+                if pb:
+                    goc = d
+                    break
+            except Exception:
+                continue
+        if not goc:
+            return
+        for g, ten in pb.items():
+            nguon = os.path.join(goc, ten if ten.lower().endswith(".wav") else ten + ".wav")
+            if not os.path.isfile(nguon):
+                continue
+            with open(nguon, "rb") as f:
+                dau = hashlib.md5(f.read()).hexdigest() + " " + os.path.basename(nguon)
+            mau = self._mau(g)
+            ghi = mau + ".nguon.txt"
+            try:
+                with open(ghi, encoding="utf-8") as f:
+                    if f.read().strip() == dau and os.path.isfile(mau):
+                        continue
+            except OSError:
+                pass
+            os.makedirs(os.path.dirname(mau), exist_ok=True)
+            shutil.copyfile(nguon, mau)
+            shutil.rmtree(self._thu_wav(g), ignore_errors=True)
+            for m, t in self.mul.items():
+                if self.nguoi_noi(t.get("ten") or "") == g:
+                    for c in range(t.get("k", 1)):
+                        try:
+                            os.remove(self._ten_mp3(m, c))
+                        except OSError:
+                            pass
+            with open(ghi, "w", encoding="utf-8") as f:
+                f.write(dau)
 
     def da_cai_giong(self):
         return os.path.isfile(os.path.join(self.thu_muc_game, MARKER_GIONG))

@@ -1,3 +1,7 @@
+## Dịch Game v6.21.2
+
+- Tomb Raider (2013): lồng tiếng bằng BỘ GIỌNG MẪU của bạn (thư mục DichGame_LongTieng\giong_rieng, mục "TR2013" trong phan_bo.json). Đổi giọng một nhân vật → app chỉ làm lại câu của nhân vật đó.
+
 ## Dịch Game v6.21.1
 
 - Tomb Raider (2013): giọng Lara lấy mẫu từ giọng tiếng Anh gốc của Lara trong game (không dùng giọng Rise nữa).
