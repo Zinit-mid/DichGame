@@ -1,3 +1,7 @@
+## Dịch Game v6.24.0
+
+- MỚI: Cài đặt → Hệ thống → "Nơi lưu AI": chuyển mô hình dịch offline và AI của Phụ đề phim (vài GB) sang ổ khác (vd ổ D) bằng 1 nút. App vẫn dùng bình thường, không phải tải lại.
+
 ## Dịch Game v6.23.3
 
 - Phụ đề phim: app có Python riêng (tải 1 lần ~11 MB), KHÔNG cần VieNeu nữa. Lần đầu sau khi cập nhật sẽ tải lại công cụ (~250 MB); mô hình AI đã tải thì giữ nguyên.

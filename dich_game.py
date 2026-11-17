@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.23.3"
+APP_VERSION = "6.24.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -2621,10 +2621,70 @@ class App:
         o = the(t, "Dữ liệu", "Cài đặt, mã API, bản dịch đã lưu nằm ở %APPDATA%\\DichGame – cập nhật app không mất.")
         h = self._hang(o, P(8))
         self._nut(h, "Mở thư mục dữ liệu", cmd=lambda: os.startfile(DU_LIEU), nho=True).pack(side="left")
+        o = the(t, "Nơi lưu AI",
+                "Mô hình dịch offline và AI nghe tiếng của Phụ đề phim khá nặng (vài GB). Có thể chuyển sang ổ khác "
+                "(vd ổ D) cho đỡ đầy ổ C – app vẫn dùng bình thường, không phải tải lại.")
+        self.lbl_noi_ai = tk.Label(o, text="", bg=UI_THE, fg=UI_PHU, font=self._f(10), anchor="w", justify="left")
+        self.lbl_noi_ai.pack(fill="x")
+        h = self._hang(o, P(8))
+        self.nut_noi_ai = self._nut(h, "Chuyển sang ổ khác…", cmd=self._chuyen_noi_ai, nho=True)
+        self.nut_noi_ai.pack(side="left")
+        self._hien_noi_ai()
         o = the(t, "Thoát")
         h = self._hang(o, P(8))
         self._nut(h, "Thoát app", kieu="nguy_hiem", cmd=self.thoat, nho=True).pack(side="left")
 
+
+    def _hien_noi_ai(self, them=""):
+        try:
+            import noi_luu_ai as nl
+            dong = []
+            for ten, goc, _ in nl.cac_muc():
+                that = nl.noi_that(goc)
+                dong.append(f"• {ten}: {that}" + ("" if os.path.isdir(goc) else " (chưa tải)"))
+            self.lbl_noi_ai.config(text="\n".join(dong) + (("\n" + them) if them else ""))
+        except Exception as e:
+            self.lbl_noi_ai.config(text=f"Không đọc được: {e}")
+
+    def _chuyen_noi_ai(self):
+        from tkinter import filedialog
+        if getattr(self, "_dang_chuyen_ai", False):
+            return
+        cha = filedialog.askdirectory(title="Chọn ổ / thư mục để lưu AI (vd D:\\)")
+        if not cha:
+            return
+        cha = os.path.normpath(cha)
+        if not messagebox.askyesno("Chuyển nơi lưu AI",
+                                   f"Chuyển mô hình AI sang:\n{os.path.join(cha, 'DichGame_AI')}\n\n"
+                                   "Hãy dừng dịch offline / tạo phụ đề phim trước. Có thể mất vài phút. Tiếp tục?"):
+            return
+        self._dang_chuyen_ai = True
+        # nha mo hinh dich offline dang mo (Windows khoa file dang dung)
+        try:
+            with self.offline.khoa:
+                self.offline.tr = None
+                self.offline.sp_nguon = self.offline.sp_dich = None
+                if self.offline.trang_thai == "san_sang":
+                    self.offline.trang_thai = "chua_tai"
+            import gc
+            gc.collect()
+        except Exception:
+            pass
+
+        def bao(chu):
+            self.q.put(("goi", lambda c=chu: self.lbl_noi_ai.config(text=c, fg=UI_VANG)))
+
+        def chay():
+            try:
+                import noi_luu_ai as nl
+                kq = nl.chuyen_het(cha, bao)
+                loi = [f"{t}: {k}" for t, k in kq if k.startswith("lỗi")]
+                them = ("⚠ " + "\n⚠ ".join(loi)) if loi else "✓ Đã chuyển xong."
+            except Exception as e:
+                them = f"⚠ Không chuyển được: {e}"
+            self.q.put(("goi", lambda: (setattr(self, "_dang_chuyen_ai", False),
+                                        self.lbl_noi_ai.config(fg=UI_PHU), self._hien_noi_ai(them))))
+        threading.Thread(target=chay, daemon=True).start()
 
     def _chon_trang_cai_dat(self, ma):
         self._chon_trang("cd_" + ma)
@@ -4176,6 +4236,11 @@ class App:
                         self._cap_nhat_nut()
                 elif loai == "lenh":
                     self.lenh(tin[1])
+                elif loai == "goi":
+                    try:
+                        tin[1]()
+                    except Exception:
+                        pass
         except queue.Empty:
             pass
         if not self.dung.is_set():
