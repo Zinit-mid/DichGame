@@ -2,8 +2,8 @@
 -> tai ve (yt-dlp) -> nghe ra chu (faster-whisper tren card man hinh) -> dich (Claude / offline)
 -> file .srt cung ten dat canh phim -> mo phim bang trinh phat mac dinh (VLC, PotPlayer... tu nhan phu de).
 
-Cong cu AI chay bang Python cua app VieNeu (da co tren may). Thu vien rieng cai vao
-%APPDATA%\\VietHoaGame\\phim\\_thu_vien (pip --target) -> khong dung cham VieNeu."""
+Cong cu AI chay bang Python 3.12 rieng cua app (tai 1 lan tu python.org vao %APPDATA%\\VietHoaGame\\phim\\_python),
+thu vien cai vao phim\\_thu_vien312 (pip --target) -> khong can VieNeu."""
 import hashlib
 import json
 import os
@@ -17,7 +17,9 @@ import viet_hoa_cd as vcd
 from viet_hoa_cd import LoiDung
 
 THU_MUC = os.path.join(vcd.DU_LIEU, "phim")
-THU_VIEN = os.path.join(THU_MUC, "_thu_vien")
+THU_VIEN = os.path.join(THU_MUC, "_thu_vien312")      # thu vien cho Python 3.12 rieng cua app
+PY_DIR = os.path.join(THU_MUC, "_python")
+PY_URL = "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip"
 MO_HINH_DIR = os.path.join(THU_MUC, "_mo_hinh")
 BAN_THU_VIEN = "1"
 GOI_PIP = ["faster-whisper>=1.1.0", "yt-dlp[default]", "imageio-ffmpeg", "deno"]
@@ -175,6 +177,17 @@ def ghi_srt(duong_dan, dong):
         f.write("\n".join(ra))
 
 
+def mo_phim(phim, srt=None):
+    """Mo phim; co VLC thi mo bang VLC va nap THANG file phu de (chac chan hien)."""
+    for g in (os.environ.get("ProgramFiles", r"C:\Program Files"), os.environ.get("ProgramFiles(x86)", "")):
+        vlc = os.path.join(g, "VideoLAN", "VLC", "vlc.exe") if g else ""
+        if vlc and os.path.isfile(vlc):
+            lenh = [vlc, phim] + ([f"--sub-file={srt}"] if srt and os.path.isfile(srt) else [])
+            subprocess.Popen(lenh)
+            return
+    os.startfile(phim)
+
+
 def la_link(s):
     return bool(re.match(r"^\s*https?://", s or ""))
 
@@ -235,22 +248,54 @@ class ViecPhim(vcd.ViecDich):
             if self.nen_dich(None, c):
                 yield c
 
-    # ---------- cong cu AI
+    # ---------- cong cu AI (Python rieng cua app, khong can VieNeu)
     @staticmethod
-    def tim_python():
-        vn = vcd.ViecDich.tim_vieneu()
-        if not vn:
-            raise LoiDung("cần app VieNeu (bản GPU) đã cài trên máy – app dùng Python của VieNeu để chạy AI nghe tiếng")
-        return vn
+    def _tai(url, dich, bao=None, ten=""):
+        import urllib.request
+        with urllib.request.urlopen(url, timeout=120) as r, open(dich + ".tam", "wb") as f:
+            tong, da = int(r.headers.get("Content-Length") or 0), 0
+            while True:
+                k = r.read(1 << 20)
+                if not k:
+                    break
+                f.write(k)
+                da += len(k)
+                if bao and tong:
+                    bao(f"Đang tải {ten}: {da * 100 // tong}%")
+        os.replace(dich + ".tam", dich)
+
+    def tim_python(self, bao=lambda s: None):
+        """Python 3.12 ban nhung (embeddable) cua python.org, tai 1 lan vao THU_MUC/_python."""
+        exe = os.path.join(PY_DIR, "python.exe")
+        if os.path.isfile(exe):
+            return exe
+        import zipfile
+        os.makedirs(THU_MUC, exist_ok=True)
+        z = os.path.join(THU_MUC, "python_embed.zip")
+        bao("Lần đầu: đang tải Python riêng cho app (~11 MB)...")
+        self._tai(PY_URL, z, bao, "Python")
+        tam = PY_DIR + "_tam"
+        import shutil
+        shutil.rmtree(tam, ignore_errors=True)
+        with zipfile.ZipFile(z) as zf:
+            zf.extractall(tam)
+        for t in os.listdir(tam):
+            if t.endswith("._pth"):          # bat "import site" de chay pip / thu vien binh thuong
+                with open(os.path.join(tam, t), "w", encoding="utf-8") as f:
+                    f.write(t[:-5] + ".zip\n.\nimport site\n")
+        shutil.rmtree(PY_DIR, ignore_errors=True)
+        os.replace(tam, PY_DIR)
+        os.remove(z)
+        return exe
 
     def chuan_bi(self, bao, can_cuda=False):
-        """Cai thu vien (lan dau / khi thieu CUDA) vao THU_VIEN bang pip cua Python VieNeu."""
-        py, _, _ = self.tim_python()
+        """Cai thu vien (lan dau / khi thieu CUDA) vao THU_VIEN bang pip (chay tu file wheel)."""
+        py = self.tim_python(bao)
         dau = os.path.join(THU_VIEN, "_xong_" + BAN_THU_VIEN + ("_cuda" if can_cuda else "") + ".txt")
         if os.path.isfile(dau):
             return
         goi = GOI_CUDA if can_cuda else GOI_PIP
-        bao("Lần đầu: đang tải công cụ nghe tiếng (" + ("thư viện CUDA ~1,2 GB" if can_cuda else "~200 MB") +
+        bao("Lần đầu: đang tải công cụ nghe tiếng (" + ("thư viện CUDA ~1,2 GB" if can_cuda else "~250 MB") +
             ") – chờ vài phút...")
         os.makedirs(THU_VIEN, exist_ok=True)
         an = 0x08000000 if os.name == "nt" else 0
@@ -264,32 +309,24 @@ class ViecPhim(vcd.ViecDich):
         with open(dau, "w") as f:
             f.write(time.strftime("%Y-%m-%d"))
 
-    @staticmethod
-    def _lenh_pip(py):
-        """Python cua VieNeu (venv tao bang uv) khong co pip -> chay pip thang tu file wheel tai tu PyPI
-        (khong cai gi vao venv cua VieNeu)."""
-        an = 0x08000000 if os.name == "nt" else 0
-        try:
-            if subprocess.run([py, "-m", "pip", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              creationflags=an, timeout=60).returncode == 0:
-                return [py, "-m", "pip"]
-        except Exception:
-            pass
+    def _lenh_pip(self, py):
+        """pip chay thang tu file wheel tai tu PyPI (Python ban nhung khong co pip)."""
         whl = os.path.join(THU_MUC, "pip.whl")
         if not os.path.isfile(whl):
             import urllib.request
             with urllib.request.urlopen("https://pypi.org/pypi/pip/json", timeout=60) as r:
                 tt = json.load(r)
             url = next(u["url"] for u in tt["urls"] if u["packagetype"] == "bdist_wheel")
-            with urllib.request.urlopen(url, timeout=300) as r, open(whl + ".tam", "wb") as f:
-                f.write(r.read())
-            os.replace(whl + ".tam", whl)
-        return [py, os.path.join(whl, "pip")]
+            self._tai(url, whl)
+        ma = ("import sys; sys.path.insert(0, sys.argv.pop(1)); "
+              "from pip._internal.cli.main import main; sys.exit(main())")
+        return [py, "-c", ma, whl]
 
     def _dll(self):
-        py, _, _ = self.tim_python()
-        venv = os.path.dirname(os.path.dirname(py))
-        ds = [os.path.join(venv, "Lib", "site-packages", "torch", "lib")]
+        ds = []
+        vn = vcd.ViecDich.tim_vieneu()            # co VieNeu (torch CUDA) thi muon luon thu vien CUDA cua no
+        if vn:
+            ds.append(os.path.join(os.path.dirname(os.path.dirname(vn[0])), "Lib", "site-packages", "torch", "lib"))
         nv = os.path.join(THU_VIEN, "nvidia")
         if os.path.isdir(nv):
             for t in os.listdir(nv):
@@ -297,8 +334,8 @@ class ViecPhim(vcd.ViecDich):
         return ds
 
     def _chay(self, cfg, bao, tien_do):
-        py, _, gpu = self.tim_python()
-        cfg = dict(cfg, lib=THU_VIEN, dll=self._dll(), mo_hinh_dir=MO_HINH_DIR, gpu=gpu)
+        py = self.tim_python(bao)
+        cfg = dict(cfg, lib=THU_VIEN, dll=self._dll(), mo_hinh_dir=MO_HINH_DIR, gpu=True)
         os.makedirs(MO_HINH_DIR, exist_ok=True)
         kb = os.path.join(THU_MUC, "nghe_phim.py")
         with open(kb, "w", encoding="utf-8") as f:
@@ -488,7 +525,7 @@ class TrangPhim:
     def mo_phim(self):
         v = self.viec
         if v and v.phim and os.path.isfile(v.phim["duong_dan"]):
-            os.startfile(v.phim["duong_dan"])
+            mo_phim(v.phim["duong_dan"], os.path.splitext(v.phim["duong_dan"])[0] + ".srt")
 
     def mo_thu_muc(self):
         v = self.viec
@@ -540,7 +577,7 @@ class TrangPhim:
                    "Đang mở phim… Nếu không thấy phụ đề: mở bằng VLC / PotPlayer, hoặc kéo file .srt vào cửa sổ phim.")
             self._bao(chu, self.m["xanh"])
             try:
-                os.startfile(v.phim["duong_dan"])
+                mo_phim(v.phim["duong_dan"], srt)
             except Exception:
                 pass
         except Exception as e:

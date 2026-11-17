@@ -1,3 +1,8 @@
+## Dịch Game v6.23.3
+
+- Phụ đề phim: app có Python riêng (tải 1 lần ~11 MB), KHÔNG cần VieNeu nữa. Lần đầu sau khi cập nhật sẽ tải lại công cụ (~250 MB); mô hình AI đã tải thì giữ nguyên.
+- Mở phim bằng VLC thì app nạp thẳng file phụ đề → luôn hiện phụ đề.
+
 ## Dịch Game v6.23.2
 
 - Phụ đề phim: sửa lỗi "open() got an unexpected keyword argument 'metadata_errors'" khi AI bắt đầu nghe (tách âm thanh bằng ffmpeg). Phim đã tải không phải tải lại.
