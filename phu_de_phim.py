@@ -244,7 +244,7 @@ class ViecPhim(vcd.ViecDich):
             ") – chờ vài phút...")
         os.makedirs(THU_VIEN, exist_ok=True)
         an = 0x08000000 if os.name == "nt" else 0
-        r = subprocess.run([py, "-m", "pip", "install", "--upgrade", "--target", THU_VIEN, "--ignore-installed",
+        r = subprocess.run(self._lenh_pip(py) + ["install", "--upgrade", "--target", THU_VIEN, "--ignore-installed",
                             "--no-warn-script-location", "--disable-pip-version-check"] + goi,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=an)
         with open(os.path.join(THU_MUC, "pip_nhat_ky.txt"), "ab") as f:
@@ -253,6 +253,28 @@ class ViecPhim(vcd.ViecDich):
             raise LoiDung("không tải được công cụ (cần mạng) – xem " + os.path.join(THU_MUC, "pip_nhat_ky.txt"))
         with open(dau, "w") as f:
             f.write(time.strftime("%Y-%m-%d"))
+
+    @staticmethod
+    def _lenh_pip(py):
+        """Python cua VieNeu (venv tao bang uv) khong co pip -> chay pip thang tu file wheel tai tu PyPI
+        (khong cai gi vao venv cua VieNeu)."""
+        an = 0x08000000 if os.name == "nt" else 0
+        try:
+            if subprocess.run([py, "-m", "pip", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              creationflags=an, timeout=60).returncode == 0:
+                return [py, "-m", "pip"]
+        except Exception:
+            pass
+        whl = os.path.join(THU_MUC, "pip.whl")
+        if not os.path.isfile(whl):
+            import urllib.request
+            with urllib.request.urlopen("https://pypi.org/pypi/pip/json", timeout=60) as r:
+                tt = json.load(r)
+            url = next(u["url"] for u in tt["urls"] if u["packagetype"] == "bdist_wheel")
+            with urllib.request.urlopen(url, timeout=300) as r, open(whl + ".tam", "wb") as f:
+                f.write(r.read())
+            os.replace(whl + ".tam", whl)
+        return [py, os.path.join(whl, "pip")]
 
     def _dll(self):
         py, _, _ = self.tim_python()

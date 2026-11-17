@@ -1,3 +1,7 @@
+## Dịch Game v6.23.1
+
+- Phụ đề phim: sửa lỗi "không tải được công cụ" (Python của VieNeu không có pip → app tự dùng pip tải từ PyPI, không cài gì vào VieNeu).
+
 ## Dịch Game v6.23.0
 
 - MỚI: mục "Phụ đề phim" (menu bên trái). Dán link phim (YouTube, đa số trang video) hoặc chọn file phim trên máy → app tải về, AI nghe lời thoại, dịch sang tiếng Việt, tạo phụ đề .srt KHỚP TỪNG CÂU đặt cạnh phim rồi tự mở phim.
