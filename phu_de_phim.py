@@ -91,7 +91,17 @@ if m is None:
     m = WhisperModel(cfg.get("mo_hinh_cpu", "small"), device="cpu", compute_type="int8",
                      cpu_threads=max(2, (os.cpu_count() or 4) - 2), download_root=cfg["mo_hinh_dir"])
     bao("THIET_BI cpu")
-doan, tt = m.transcribe(nguon, language=cfg.get("ngon_ngu") or None, vad_filter=True,
+# giai ma am thanh bang ffmpeg (khong dung PyAV – ban PyAV moi khong hop faster-whisper)
+import subprocess, numpy as np, imageio_ffmpeg
+bao("GIAI_MA")
+raw = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-nostdin", "-v", "error", "-i", nguon, "-vn", "-ac", "1",
+                      "-ar", "16000", "-f", "s16le", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                     creationflags=0x08000000 if os.name == "nt" else 0).stdout
+am = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+del raw
+if not len(am):
+    raise SystemExit("khong doc duoc am thanh trong file phim")
+doan, tt = m.transcribe(am, language=cfg.get("ngon_ngu") or None, vad_filter=True,
                         word_timestamps=True, beam_size=5, condition_on_previous_text=False)
 bao("NGON_NGU", tt.language, round(tt.duration, 1))
 ra = []
@@ -324,6 +334,8 @@ class ViecPhim(vcd.ViecDich):
                     bao("Đang nghe tiếng bằng " + ("card màn hình" if t[1] == "cuda" else "CPU (chậm hơn)") + "...")
                 elif t[0] == "KHONG_CUDA":
                     kq["khong_cuda"] = True
+                elif t[0] == "GIAI_MA":
+                    bao("Đang tách âm thanh khỏi phim...")
                 elif t[0] == "NGON_NGU":
                     kq["ngon_ngu"] = t[1].split()[0]
                 elif d.strip():

@@ -1,3 +1,7 @@
+## Dịch Game v6.23.2
+
+- Phụ đề phim: sửa lỗi "open() got an unexpected keyword argument 'metadata_errors'" khi AI bắt đầu nghe (tách âm thanh bằng ffmpeg). Phim đã tải không phải tải lại.
+
 ## Dịch Game v6.23.1
 
 - Phụ đề phim: sửa lỗi "không tải được công cụ" (Python của VieNeu không có pip → app tự dùng pip tải từ PyPI, không cài gì vào VieNeu).
