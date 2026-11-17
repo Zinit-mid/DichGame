@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.22.0"
+APP_VERSION = "6.23.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -2132,6 +2132,8 @@ class App:
         # ---------- cac trang
         self._them_menu("QUẢN LÝ", "thu_vien", "◫", "Thư viện game")
         self._them_menu("QUẢN LÝ", "dich", "▶", "Dịch màn hình")
+        self._them_menu("QUẢN LÝ", "phim", "▣", "Phụ đề phim")
+        self._xay_tre["phim"] = self._xay_phim
         t = self._tao_trang("thu_vien", None, cuon=False)
         self._tao_thu_vien(t)
         t = self._tao_trang("dich", "Dịch màn hình", "Đọc chữ tiếng Anh trên màn hình game và hiện bản dịch tiếng Việt.")
@@ -2246,6 +2248,18 @@ class App:
             self.thu_vien.mo_cd(g, cha=t)
         else:
             self.thu_vien.mo_rottr(g, cha=t)
+
+    def _xay_phim(self):
+        t = self._tao_trang("phim", "Phụ đề phim",
+                            "Phim / video không có phụ đề → app nghe lời thoại, dịch sang tiếng Việt, tạo phụ đề khớp từng câu.")
+        try:
+            import phu_de_phim
+            self.trang_phim = phu_de_phim.TrangPhim(t, self._f, self._p, {
+                "nen": UI_NEN, "chu": UI_CHU, "phu": UI_PHU, "o": UI_O, "vang": UI_VANG, "xanh": UI_XANH,
+                "loi": UI_LOI})
+        except Exception as e:
+            tk.Label(t, text=f"Không mở được trang phụ đề phim: {e}", bg=UI_NEN, fg=UI_LOI,
+                     font=self._f(10)).pack(pady=20)
 
     def _xay_ban_do(self):
         t = self._tao_trang("cc_bando", "Bản đồ Crimson Desert",

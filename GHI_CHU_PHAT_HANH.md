@@ -1,3 +1,10 @@
+## Dịch Game v6.23.0
+
+- MỚI: mục "Phụ đề phim" (menu bên trái). Dán link phim (YouTube, đa số trang video) hoặc chọn file phim trên máy → app tải về, AI nghe lời thoại, dịch sang tiếng Việt, tạo phụ đề .srt KHỚP TỪNG CÂU đặt cạnh phim rồi tự mở phim.
+  - Cần app VieNeu (bản GPU) trên máy. Lần đầu tải công cụ + mô hình nghe (~2 GB).
+  - Phim 2 tiếng khoảng 5–15 phút. Dịch Claude vài nghìn đồng/phim, hoặc Offline miễn phí.
+  - Phim tải về nằm ở thư mục Videos\DichGame.
+
 ## Dịch Game v6.22.0
 
 - Crimson Desert – lồng tiếng: app tự KIỂM TRA GIỚI TÍNH giọng gốc của từng nhân vật (đo cao độ giọng tiếng Anh). Nhân vật nữ đang bị lồng giọng nam (hoặc ngược lại) → tự đổi sang giọng cùng giới trong bộ giọng của bạn và làm lại các câu đó. Danh sách đã đổi ghi ở DichGame_LongTieng\doi_gioi_tinh_A.txt.
