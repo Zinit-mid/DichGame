@@ -1223,6 +1223,120 @@ class ViecDich:
         with open(ghi, "w", encoding="utf-8") as f:
             f.write(dau)
 
+    @staticmethod
+    def cao_do(x, sr=48000):
+        """Cao do giong (Hz, trung vi) cua mang am thanh mono; None neu khong do duoc."""
+        import numpy as np
+        fr = int(0.04 * sr)
+        r = []
+        for i in range(0, len(x) - fr, fr):
+            y = x[i:i + fr]
+            if float(np.sqrt(np.mean(y ** 2))) < 0.02:
+                continue
+            y = y - y.mean()
+            c = np.correlate(y, y, "full")[fr - 1:]
+            lo, hi = int(sr / 450), int(sr / 60)
+            k = lo + int(np.argmax(c[lo:hi]))
+            if c[k] > 0.3 * c[0]:
+                r.append(sr / k)
+        return float(np.median(r)) if len(r) >= 5 else None
+
+    # giong rieng KHONG dung de xoay vong (giong dac biet: phu thuy, nguoi gia, tre em, nhan vat chinh)
+    KHONG_XOAY = ("phu_thuy", "gia", "be_", "nam_chinh.wav", "giong_nam_chinh", "giong_nu_chinh", "nam_am")
+
+    def sua_gioi_tinh(self, phan, nhom, thu_muc_lv, vgm, bao=lambda s: None):
+        """Do cao do giong tieng Anh goc cua tung nhan vat -> nhan vat NU dang bi gan giong nam (va nguoc lai)
+        thi doi sang giong cung gioi trong bo giong rieng. Ghi lai phan_bo.json. -> [(giong, cu, moi)]."""
+        import subprocess
+        import shutil
+        import wave
+        import numpy as np
+        goc = os.path.join(thu_muc_lv, "giong_rieng")
+        tep = os.path.join(goc, "phan_bo.json")
+        try:
+            with open(tep, encoding="utf-8") as f:
+                pb = json.load(f)
+        except Exception:
+            return []
+        gan = pb.get(phan) or {}
+        if not gan:
+            return []
+        # cao do cac giong rieng
+        cd_giong = {}
+        for ten in set(gan.values()):
+            try:
+                with wave.open(os.path.join(goc, ten), "rb") as w:
+                    sr, ch = w.getframerate(), w.getnchannels()
+                    x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").astype(np.float32) / 32768.0
+                if ch > 1:
+                    x = x.reshape(-1, ch).mean(1)
+                cd_giong[ten] = self.cao_do(x, sr)
+            except Exception:
+                cd_giong[ten] = None
+        la_nu = lambda f: f is not None and f >= 175
+        la_nam = lambda f: f is not None and f <= 160
+        xoay = lambda dk: sorted(t for t, f in cd_giong.items() if dk(f) and not any(k in t for k in self.KHONG_XOAY))
+        nu, nam = xoay(la_nu), xoay(la_nam)
+        # cao do giong goc tung nhan vat (luu dem)
+        dem_tep = os.path.join(thu_muc_lv, phan, "_cao_do_goc.json")
+        try:
+            with open(dem_tep, encoding="utf-8") as f:
+                dem = json.load(f)
+        except Exception:
+            dem = {}
+        an = 0x08000000 if os.name == "nt" else 0
+        tam = os.path.join(thu_muc_lv, phan, "_do_cao_do")
+        nhom_am = os.path.join(self.thu_muc_game, "0006")
+        for i, g in enumerate(sorted(gan), 1):
+            if g in dem or g not in nhom:
+                continue
+            bao(f"Đang kiểm tra giới tính giọng gốc {i}/{len(gan)}: {g}")
+            os.makedirs(tam, exist_ok=True)
+            phan_am = []
+            for c in sorted([c for c in nhom[g] if 1.5 <= c["giay"] <= 9], key=lambda c: -c["giay"])[:4]:
+                wem, ra = os.path.join(tam, "x.wem"), os.path.join(tam, "x.wav")
+                try:
+                    with open(wem, "wb") as fh:
+                        fh.write(cd.doc_tep(nhom_am, c["f"]))
+                    if os.path.exists(ra):
+                        os.remove(ra)
+                    subprocess.run([vgm, "-o", ra, wem], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                   creationflags=an, timeout=120)
+                    self.chuan_wav(ra, ra + ".48k.wav")
+                    phan_am.append(self._doc_wav16(ra + ".48k.wav"))
+                except Exception:
+                    continue
+            dem[g] = self.cao_do(np.concatenate(phan_am)) if phan_am else None
+            if self.dung.is_set():
+                break
+        shutil.rmtree(tam, ignore_errors=True)
+        os.makedirs(os.path.dirname(dem_tep), exist_ok=True)
+        with open(dem_tep, "w", encoding="utf-8") as f:
+            json.dump(dem, f, ensure_ascii=False, indent=1)
+        doi = []
+        dem_nu = dem_nam = 0
+        for g in sorted(gan, key=lambda g: -len(nhom.get(g, []))):
+            f0, cu = dem.get(g), gan[g]
+            moi = None
+            if la_nu(f0) and not la_nu(cd_giong.get(cu)) and nu:
+                moi, dem_nu = nu[dem_nu % len(nu)], dem_nu + 1
+            elif la_nam(f0) and not la_nam(cd_giong.get(cu)) and nam:
+                moi, dem_nam = nam[dem_nam % len(nam)], dem_nam + 1
+            if moi and moi != cu:
+                gan[g] = moi
+                doi.append((g, cu, moi))
+        if doi:
+            if not os.path.isfile(tep + ".truoc_sua_gioi_tinh"):
+                shutil.copyfile(tep, tep + ".truoc_sua_gioi_tinh")
+            pb[phan] = gan
+            with open(tep + ".tam", "w", encoding="utf-8") as f:
+                json.dump(pb, f, ensure_ascii=False, indent=1)
+            os.replace(tep + ".tam", tep)
+            with open(os.path.join(thu_muc_lv, f"doi_gioi_tinh_{phan}.txt"), "a", encoding="utf-8") as f:
+                for g, cu, moi in doi:
+                    f.write(f"{g}: {cu} -> {moi} (giọng gốc {dem.get(g) or 0:.0f} Hz)\n")
+        return doi
+
     def long_tieng_phan(self, phan, thu_muc_lv, duong_dan_zip, wwise, bao=lambda s: None, tang_db=6.0):
         """Ca quy trinh cho phan A/B: ke hoach -> giong mau tung nguoi -> VieNeu -> Wwise -> zip DMM.
         Chay lai thi lam tiep cho do. -> dict thong ke, None neu bi tam dung."""
@@ -1250,6 +1364,10 @@ class ViecDich:
             td.hoc_bang_claude([self.lam_sach_loi(c["vi"]) for ds in can.values() for c in ds], doc_khoa_claude(), bao)
         except Exception:
             pass                      # khong co mang / ma Claude -> dung quy tac phien am tu dong
+        try:
+            self.sua_gioi_tinh(phan, nhom, thu_muc_lv, vgm, bao)
+        except Exception:
+            pass                      # khong do duoc -> giu phan bo cu
         viec = []
         thieu_mau = []
         for i, (g, ds) in enumerate(sorted(can.items(), key=lambda x: -len(x[1])), 1):

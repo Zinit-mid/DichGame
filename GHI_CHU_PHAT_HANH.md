@@ -1,3 +1,7 @@
+## Dịch Game v6.22.0
+
+- Crimson Desert – lồng tiếng: app tự KIỂM TRA GIỚI TÍNH giọng gốc của từng nhân vật (đo cao độ giọng tiếng Anh). Nhân vật nữ đang bị lồng giọng nam (hoặc ngược lại) → tự đổi sang giọng cùng giới trong bộ giọng của bạn và làm lại các câu đó. Danh sách đã đổi ghi ở DichGame_LongTieng\doi_gioi_tinh_A.txt.
+
 ## Dịch Game v6.21.2
 
 - Tomb Raider (2013): lồng tiếng bằng BỘ GIỌNG MẪU của bạn (thư mục DichGame_LongTieng\giong_rieng, mục "TR2013" trong phan_bo.json). Đổi giọng một nhân vật → app chỉ làm lại câu của nhân vật đó.
