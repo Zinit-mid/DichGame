@@ -1132,6 +1132,9 @@ class App:
             b.pack(side="left", padx=2)
             self.cd_nut_al[db] = b
         self._chon_al(float(self.cfg.get("cd_am_luong_db", 6.0)))
+        hang4g = tk.Frame(w, bg=UI_NEN)
+        hang4g.pack(fill="x", pady=(8, 2))
+        self._nut(hang4g, "Gán giọng cho từng nhân vật…", lambda: self._cd_gan_giong(g), chinh=True).pack(side="left")
         hang4 = tk.Frame(w, bg=UI_NEN)
         hang4.pack(fill="x", pady=(2, 4))
         self._nut(hang4, "Lồng tiếng A – nhân vật cốt truyện (Kliff + 220 người)",
@@ -1438,6 +1441,257 @@ class App:
                         pass
                 self.q.put(("goi", lambda: setattr(self, "cd_dang_chay", False)))
         threading.Thread(target=chay, daemon=True).start()
+
+    def _cd_gan_giong(self, g):
+        """Bang nhan vat Crimson Desert: chon giong rieng (giong_rieng/*.wav) cho tung nguoi, nghe thu, luu, long tieng."""
+        import viet_hoa_cd as vcd
+        from tkinter import ttk
+        tk = self.tk
+        if self.cd_viec is None:
+            self.messagebox.showinfo("Gán giọng", "Đợi app đọc xong chữ của game rồi bấm lại.")
+            return
+        cu = getattr(self, "cua_so_gv", None)
+        if cu is not None:
+            try:
+                cu.lift()
+                return
+            except Exception:
+                self.cua_so_gv = None
+        viec = self.cd_viec
+        lv = vcd.ViecDich.thu_muc_lam_viec(g["thu_muc"])
+        NHAI = "(nhái giọng gốc của nhân vật)"
+        pb = vcd.ViecDich.doc_phan_bo(lv)
+        st = {"phan": "A", "ds": {}, "gan": {}, "tay": {}, "sua": False, "dang_nap": False}
+        for ph in ("A", "B"):
+            st["gan"][ph] = dict(pb.get(ph) or {})
+            st["tay"][ph] = set((pb.get("_tay") or {}).get(ph) or [])
+        giong_ten = lambda: [x[:-4] for x in vcd.ViecDich.liet_ke_giong_rieng(lv)]
+
+        w = tk.Toplevel(self.root)
+        self.cua_so_gv = w
+        w.title("Gán giọng cho nhân vật – Crimson Desert")
+        w.configure(bg=UI_NEN, padx=16, pady=12)
+        w.geometry("1020x740")
+
+        def dong():
+            if st["sua"] and self.messagebox.askyesno("Gán giọng", "Bạn đã đổi giọng nhưng chưa lưu. Lưu lại không?"):
+                luu()
+            try:
+                import winsound
+                winsound.PlaySound(None, winsound.SND_PURGE)
+            except Exception:
+                pass
+            self.cua_so_gv = None
+            w.destroy()
+        w.protocol("WM_DELETE_WINDOW", dong)
+
+        tk.Label(w, text="Gán giọng cho nhân vật", bg=UI_NEN, fg=UI_CHU, font=ft(13, "bold"), anchor="w").pack(fill="x")
+        tu_xuong_dong(tk.Label(
+            w, text="Chọn nhân vật (bấm giữ Ctrl / Shift để chọn nhiều người) → chọn giọng ở ô bên dưới → bấm "
+                    "\"Gán giọng\". Giọng lấy từ thư mục giong_rieng. Người nào bạn đã chọn thì app KHÔNG tự đổi giới tính. "
+                    "Bấm \"Lưu & lồng tiếng\": chỉ làm lại những người đổi giọng.",
+            bg=UI_NEN, fg=UI_PHU, font=ft(9), anchor="w", justify="left", wraplength=960), w).pack(fill="x", pady=(2, 8))
+
+        hang = tk.Frame(w, bg=UI_NEN)
+        hang.pack(fill="x")
+        nut_phan = {}
+
+        def doi_phan(ph):
+            st["phan"] = ph
+            for k, b in nut_phan.items():
+                b.config(bg=UI_DO if k == ph else UI_O)
+            nap(ph)
+        for ph, ten in (("A", "Phần A – nhân vật có tên"), ("B", "Phần B – dân thường")):
+            b = self._nut(hang, ten, lambda ph=ph: doi_phan(ph), nho=True)
+            b.pack(side="left", padx=(0, 4))
+            b.bind("<Leave>", lambda e, b=b, ph=ph: b.config(bg=UI_DO if ph == st["phan"] else UI_O))
+            nut_phan[ph] = b
+        tk.Label(hang, text="Tìm:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(14, 4))
+        tim = tk.StringVar()
+        tk.Entry(hang, textvariable=tim, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU, relief="flat",
+                 font=ft(10), width=24).pack(side="left", ipady=3)
+        self._nut(hang, "Đọc lại danh sách", lambda: nap(st["phan"], True), nho=True).pack(side="right")
+
+        kieu = ttk.Style(w)
+        try:
+            kieu.theme_use("clam")
+        except Exception:
+            pass
+        kieu.configure("GV.Treeview", background=UI_THE, fieldbackground=UI_THE, foreground=UI_CHU, rowheight=26,
+                       borderwidth=0, font=ft(10))
+        kieu.configure("GV.Treeview.Heading", background=UI_O, foreground=UI_CHU, font=ft(10, "bold"), relief="flat")
+        kieu.map("GV.Treeview", background=[("selected", UI_DO)], foreground=[("selected", "#ffffff")])
+        khung = tk.Frame(w, bg=UI_NEN)
+        khung.pack(fill="both", expand=True, pady=(8, 0))
+        cot = (("ten", "Nhân vật", 250), ("cau", "Số câu", 70), ("gt", "Giới tính giọng gốc", 150),
+               ("giong", "Giọng đang gán", 250), ("nguon", "Nguồn", 120))
+        cay = ttk.Treeview(khung, columns=[c[0] for c in cot], show="headings", style="GV.Treeview",
+                           selectmode="extended")
+        for k, ten, rong in cot:
+            cay.heading(k, text=ten)
+            cay.column(k, width=rong, anchor="w" if k in ("ten", "giong", "nguon", "gt") else "e")
+        cuon = tk.Scrollbar(khung, command=cay.yview)
+        cay.configure(yscrollcommand=cuon.set)
+        cuon.pack(side="right", fill="y")
+        cay.pack(side="left", fill="both", expand=True)
+        cay.tag_configure("tay", foreground=UI_XANH)
+        cay.tag_configure("sua", foreground=UI_VANG)
+
+        tt = tk.Label(w, text="", bg=UI_NEN, fg=UI_VANG, font=ft(10), anchor="w", justify="left", wraplength=960)
+        tt.pack(fill="x", pady=(8, 0))
+        h2 = tk.Frame(w, bg=UI_NEN)
+        h2.pack(fill="x", pady=(8, 0))
+        tk.Label(h2, text="Giọng:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 6))
+        kieu.configure("GV.TCombobox", fieldbackground=UI_O, background=UI_O, foreground=UI_CHU,
+                       arrowcolor=UI_CHU, selectbackground=UI_O, selectforeground=UI_CHU)
+        hop = ttk.Combobox(h2, state="readonly", width=34, style="GV.TCombobox", font=ft(10))
+        hop.pack(side="left")
+        hop["values"] = [NHAI] + giong_ten()
+        hop.set(NHAI)
+
+        def thong_bao(chu, mau=UI_VANG):
+            tt.config(text=chu, fg=mau)
+
+        def sua_dong(ph, giong):
+            """-> (gt, giong_gan, nguon, tag)"""
+            gan, tay = st["gan"][ph], st["tay"][ph]
+            f0 = (st["ds"].get(ph, {}).get(giong) or {}).get("f0")
+            gt = "?" if not f0 else (f"Nữ ({f0:.0f} Hz)" if f0 >= 175 else f"Nam ({f0:.0f} Hz)" if f0 <= 160
+                                     else f"Khó đoán ({f0:.0f} Hz)")
+            v = gan.get(giong)
+            return gt, (v[:-4] if v and v.lower().endswith(".wav") else v) or NHAI, \
+                ("Bạn chọn" if giong in tay else "Tự động" if v else "Giọng gốc"), \
+                ("sua" if giong in st.get("da_sua", set()) else "tay" if giong in tay else "")
+
+        def ve(giu=()):
+            ph = st["phan"]
+            cay.delete(*cay.get_children())
+            loc = tim.get().strip().lower()
+            ds = st["ds"].get(ph, {})
+            for giong in sorted(ds, key=lambda x: (-ds[x]["cau"], x)):
+                ten = giong[7:] if giong.startswith("unique_") else giong
+                if loc and loc not in ten.lower():
+                    continue
+                gt, gan_ten, nguon, tag = sua_dong(ph, giong)
+                cay.insert("", "end", iid=giong, values=(ten, f'{ds[giong]["cau"]:,}'.replace(",", "."), gt, gan_ten, nguon),
+                           tags=(tag,) if tag else ())
+            for x in giu:
+                if cay.exists(x):
+                    cay.selection_add(x)
+        tim.trace_add("write", lambda *a: ve())
+
+        def nap(ph, lam_moi=False):
+            if st["dang_nap"]:
+                return
+            if ph in st["ds"] and not lam_moi:
+                ve()
+                thong_bao(f"Phần {ph}: {len(st['ds'][ph])} người nói.", UI_PHU)
+                return
+            st["dang_nap"] = True
+            thong_bao("Đang đọc danh sách nhân vật từ file giọng của game (lần đầu mất vài phút, lần sau nhanh)...")
+
+            def chay():
+                try:
+                    ds = viec.danh_sach_nhan_vat(ph, lv, lam_moi, lambda s: self.q.put(("goi", lambda s=s: thong_bao(s))))
+                    self.q.put(("goi", lambda: xong(ph, ds)))
+                except Exception as e:
+                    self.q.put(("goi", lambda e=e: loi(e)))
+            threading.Thread(target=chay, daemon=True).start()
+
+        def xong(ph, ds):
+            st["dang_nap"] = False
+            st["ds"][ph] = ds
+            if self.cua_so_gv is not w:
+                return
+            if st["phan"] == ph:
+                ve()
+                thong_bao(f"Phần {ph}: {len(ds)} người nói. Chưa gán giọng riêng thì app nhái giọng gốc của nhân vật.", UI_PHU)
+
+        def loi(e):
+            st["dang_nap"] = False
+            if self.cua_so_gv is w:
+                thong_bao(f"Lỗi đọc danh sách: {e}", UI_LOI)
+
+        def chon_dong(_=None):
+            sel = cay.selection()
+            if len(sel) == 1:
+                v = st["gan"][st["phan"]].get(sel[0])
+                hop.set(v[:-4] if v and v.lower().endswith(".wav") else NHAI)
+
+        cay.bind("<<TreeviewSelect>>", chon_dong)
+
+        def gan_giong():
+            sel = list(cay.selection())
+            if not sel:
+                thong_bao("Chưa chọn nhân vật nào – bấm vào tên nhân vật trong bảng trước.")
+                return
+            ph, v = st["phan"], hop.get()
+            if v != NHAI and v + ".wav" not in vcd.ViecDich.liet_ke_giong_rieng(lv):
+                thong_bao("Không thấy file giọng này trong thư mục giong_rieng.", UI_LOI)
+                return
+            da = st.setdefault("da_sua", set())
+            for x in sel:
+                if v == NHAI:
+                    st["gan"][ph].pop(x, None)
+                    st["tay"][ph].discard(x)
+                else:
+                    st["gan"][ph][x] = v + ".wav"
+                    st["tay"][ph].add(x)
+                da.add(x)
+            st["sua"] = True
+            ve(sel)
+            thong_bao(f"Đã gán \"{v}\" cho {len(sel)} nhân vật (chữ vàng = chưa lưu). Nhớ bấm Lưu.")
+
+        def nghe():
+            ten = hop.get()
+            if ten == NHAI:
+                thong_bao("Giọng \"nhái giọng gốc\" được tạo lúc lồng tiếng nên chưa nghe thử được.")
+                return
+            p = os.path.join(lv, "giong_rieng", ten + ".wav")
+            try:
+                import winsound
+                winsound.PlaySound(p, winsound.SND_FILENAME | winsound.SND_ASYNC)
+                thong_bao(f"Đang phát: {ten}", UI_PHU)
+            except Exception as e:
+                thong_bao(f"Không phát được: {e}", UI_LOI)
+
+        def dung_nghe():
+            try:
+                import winsound
+                winsound.PlaySound(None, winsound.SND_PURGE)
+            except Exception:
+                pass
+
+        def luu():
+            try:
+                for ph in ("A", "B"):
+                    if ph in st["ds"] or st["gan"][ph]:
+                        vcd.ViecDich.ghi_phan_bo(lv, ph, st["gan"][ph], st["tay"][ph])
+            except Exception as e:
+                thong_bao(f"Không lưu được: {e}", UI_LOI)
+                return False
+            st["sua"] = False
+            st["da_sua"] = set()
+            ve(cay.selection())
+            thong_bao("Đã lưu phân bổ giọng.", UI_XANH)
+            return True
+
+        self._nut(h2, "Gán giọng", gan_giong, chinh=True).pack(side="left", padx=8)
+        self._nut(h2, "Nghe thử", nghe, nho=True).pack(side="left")
+        self._nut(h2, "Dừng", dung_nghe, nho=True).pack(side="left", padx=4)
+        h3 = tk.Frame(w, bg=UI_NEN)
+        h3.pack(fill="x", pady=(10, 0))
+        self._nut(h3, "Lưu", luu).pack(side="left")
+
+        def luu_long_tieng():
+            if self.cd_dang_chay:
+                thong_bao("App đang chạy một việc khác – đợi xong hoặc bấm Tạm dừng ở trang chính.", UI_VANG)
+                return
+            if luu():
+                self._cd_long_tieng_phan(g, st["phan"])
+        self._nut(h3, "Lưu & lồng tiếng phần này", luu_long_tieng, chinh=True).pack(side="left", padx=8)
+        tk.Label(h3, text="(tiến độ hiện ở trang Crimson Desert)", bg=UI_NEN, fg=UI_PHU, font=ft(9)).pack(side="left")
+        doi_phan("A")
 
     def _cd_long_tieng_tu_dong(self, g):
         if self.cd_viec is None or self.cd_dang_chay:

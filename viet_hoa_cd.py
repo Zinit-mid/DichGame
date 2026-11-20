@@ -1193,6 +1193,7 @@ class ViecDich:
         import hashlib
         import shutil
         goc = os.path.join(thu_muc_lv, "giong_rieng")
+        ghi = os.path.join(thu, "_giong_rieng.txt")
         try:
             with open(os.path.join(goc, "phan_bo.json"), encoding="utf-8") as f:
                 ten = json.load(f).get(phan, {}).get(g)
@@ -1201,11 +1202,24 @@ class ViecDich:
         if ten and not ten.lower().endswith(".wav"):
             ten += ".wav"
         if not ten or not os.path.isfile(os.path.join(goc, ten)):
+            if not ten and os.path.isfile(ghi):
+                # nguoi dung bo gan giong rieng -> xoa mau + cau cu de nhai lai giong goc
+                shutil.rmtree(os.path.join(thu, "wav"), ignore_errors=True)
+                for th in glob.glob(os.path.join(thu_muc_lv, phan, "_wem_*db")):
+                    for c in cau:
+                        try:
+                            os.remove(os.path.join(th, c["ten"] + ".wem"))
+                        except OSError:
+                            pass
+                for x in ("mau.wav", "_giong_rieng.txt"):
+                    try:
+                        os.remove(os.path.join(thu, x))
+                    except OSError:
+                        pass
             return
         nguon = os.path.join(goc, ten)
         with open(nguon, "rb") as f:
             dau = hashlib.md5(f.read()).hexdigest() + " " + ten
-        ghi = os.path.join(thu, "_giong_rieng.txt")
         try:
             with open(ghi, encoding="utf-8") as f:
                 if f.read().strip() == dau:
@@ -1315,7 +1329,10 @@ class ViecDich:
             json.dump(dem, f, ensure_ascii=False, indent=1)
         doi = []
         dem_nu = dem_nam = 0
+        tay = set((pb.get("_tay") or {}).get(phan) or [])      # nguoi dung tu chon -> khong tu doi
         for g in sorted(gan, key=lambda g: -len(nhom.get(g, []))):
+            if g in tay:
+                continue
             f0, cu = dem.get(g), gan[g]
             moi = None
             if la_nu(f0) and not la_nu(cd_giong.get(cu)) and nu:
@@ -1336,6 +1353,75 @@ class ViecDich:
                 for g, cu, moi in doi:
                     f.write(f"{g}: {cu} -> {moi} (giọng gốc {dem.get(g) or 0:.0f} Hz)\n")
         return doi
+
+    # ---------------------------------------------------------- gan giong cho tung nhan vat (giao dien)
+    @staticmethod
+    def doc_phan_bo(thu_muc_lv):
+        """-> dict phan_bo.json ({"A": {giong: file.wav}, "B": {...}, "_tay": {"A": [giong...]}}); thieu file -> {}."""
+        try:
+            with open(os.path.join(thu_muc_lv, "giong_rieng", "phan_bo.json"), encoding="utf-8") as f:
+                d = json.load(f)
+            return d if isinstance(d, dict) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def ghi_phan_bo(thu_muc_lv, phan, gan, tay):
+        """Ghi lai phan_bo.json cho phan A/B (giu nguyen cac phan khac, vd TR2013). Sao luu 1 lan truoc khi gan tay.
+        'tay' = cac giong do NGUOI DUNG chon -> sua_gioi_tinh khong tu doi."""
+        import shutil
+        goc = os.path.join(thu_muc_lv, "giong_rieng")
+        os.makedirs(goc, exist_ok=True)
+        tep = os.path.join(goc, "phan_bo.json")
+        pb = ViecDich.doc_phan_bo(thu_muc_lv)
+        if os.path.isfile(tep) and not os.path.isfile(tep + ".truoc_gan_tay"):
+            shutil.copyfile(tep, tep + ".truoc_gan_tay")
+        pb[phan] = dict(sorted(gan.items()))
+        pb.setdefault("_tay", {})[phan] = sorted(tay)
+        with open(tep + ".tam", "w", encoding="utf-8") as f:
+            json.dump(pb, f, ensure_ascii=False, indent=1)
+        os.replace(tep + ".tam", tep)
+
+    @staticmethod
+    def liet_ke_giong_rieng(thu_muc_lv):
+        """Cac file .wav trong giong_rieng (khong tinh ban cu *_cu.wav) -> danh sach ten file, xep A-Z."""
+        goc = os.path.join(thu_muc_lv, "giong_rieng")
+        try:
+            return sorted(x for x in os.listdir(goc) if x.lower().endswith(".wav") and not x.lower().endswith("_cu.wav"))
+        except OSError:
+            return []
+
+    def danh_sach_nhan_vat(self, phan, thu_muc_lv, lam_moi=False, bao=lambda s: None):
+        """Nguoi noi cua phan A/B -> {giong: {"cau": so cau thoai, "viet": so cau da Viet hoa, "giay": tong giay,
+        "f0": cao do giong goc (Hz) hoac None}}. Doc 64.000 file .wem kha lau nen luu dem o <lv>\\<phan>\\_ds_nhan_vat.json."""
+        dem = os.path.join(thu_muc_lv, phan, "_ds_nhan_vat.json")
+        if not lam_moi:
+            try:
+                with open(dem, encoding="utf-8") as f:
+                    kq = json.load(f)
+                if kq:
+                    return self._them_cao_do(kq, phan, thu_muc_lv)
+            except Exception:
+                pass
+        nhom = self.ke_hoach_long_tieng(phan, bao)
+        kq = {g: {"cau": len(ds), "viet": sum(1 for c in ds if c["vi"] and self.lam_sach_loi(c["vi"])),
+                  "giay": round(sum(c["giay"] for c in ds), 1)} for g, ds in nhom.items()}
+        os.makedirs(os.path.dirname(dem), exist_ok=True)
+        with open(dem + ".tam", "w", encoding="utf-8") as f:
+            json.dump(kq, f, ensure_ascii=False)
+        os.replace(dem + ".tam", dem)
+        return self._them_cao_do(kq, phan, thu_muc_lv)
+
+    @staticmethod
+    def _them_cao_do(kq, phan, thu_muc_lv):
+        try:
+            with open(os.path.join(thu_muc_lv, phan, "_cao_do_goc.json"), encoding="utf-8") as f:
+                f0 = json.load(f)
+        except Exception:
+            f0 = {}
+        for g, v in kq.items():
+            v["f0"] = f0.get(g)
+        return kq
 
     def long_tieng_phan(self, phan, thu_muc_lv, duong_dan_zip, wwise, bao=lambda s: None, tang_db=6.0):
         """Ca quy trinh cho phan A/B: ke hoach -> giong mau tung nguoi -> VieNeu -> Wwise -> zip DMM.

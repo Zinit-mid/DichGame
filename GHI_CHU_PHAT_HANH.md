@@ -1,3 +1,8 @@
+## Dịch Game v6.25.0
+
+- MỚI: Việt hóa Crimson Desert → nút "Gán giọng cho từng nhân vật…". Bảng liệt kê nhân vật (phần A có tên, phần B dân thường) kèm số câu thoại và giới tính giọng gốc. Bạn chọn nhân vật, chọn giọng trong thư mục giong_rieng, bấm "Nghe thử", rồi "Lưu & lồng tiếng phần này" – app chỉ làm lại những người vừa đổi giọng.
+- Nhân vật do bạn tự chọn giọng thì app KHÔNG tự đổi giới tính nữa. Chọn "(nhái giọng gốc)" để quay lại giọng nhái gốc.
+
 ## Dịch Game v6.24.0
 
 - MỚI: Cài đặt → Hệ thống → "Nơi lưu AI": chuyển mô hình dịch offline và AI của Phụ đề phim (vài GB) sang ổ khác (vd ổ D) bằng 1 nút. App vẫn dùng bình thường, không phải tải lại.
