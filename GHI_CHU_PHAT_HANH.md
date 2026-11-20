@@ -1,3 +1,7 @@
+## Dịch Game v6.25.1
+
+- Gán giọng nhân vật: thêm cột "Boss?" (gợi ý theo tên), ô "Chỉ hiện gợi ý boss", nút "Chọn các nhân vật gợi ý là boss" và hai nút "Gán giọng boss NAM / NỮ" (dùng giong_boss_nam.wav, giong_boss_nu.wav trong thư mục giong_rieng).
+
 ## Dịch Game v6.25.0
 
 - MỚI: Việt hóa Crimson Desert → nút "Gán giọng cho từng nhân vật…". Bảng liệt kê nhân vật (phần A có tên, phần B dân thường) kèm số câu thoại và giới tính giọng gốc. Bạn chọn nhân vật, chọn giọng trong thư mục giong_rieng, bấm "Nghe thử", rồi "Lưu & lồng tiếng phần này" – app chỉ làm lại những người vừa đổi giọng.

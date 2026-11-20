@@ -742,6 +742,11 @@ UI_VANG = "#f0b54a"
 UI_XANH = "#3ecf8e"
 UI_LOI = "#ff6b6b"
 
+# ten nguoi noi trong file giong Crimson Desert thuong la boss / quai co thoai (goi y – nguoi dung quyet dinh)
+GOI_Y_BOSS = ("walker", "moon", "nightmare", "ancient", "acient", "antumbra", "titan", "faceless", "mazzul",
+              "tempest", "sandfang", "splithorn", "whitebear", "reeddevil", "machine", "deerking", "greedy",
+              "goldenknight", "darkness", "forgotten", "crowman", "enthunter", "northernwarrior", "goldenmask")
+
 TRANG_THAI = {
     "chua_ho_tro": ("Chưa có Việt hóa", UI_PHU),
     "co_viet_hoa": ("Có Việt hóa – chưa cài", UI_VANG),
@@ -1492,6 +1497,9 @@ class App:
                     "Bấm \"Lưu & lồng tiếng\": chỉ làm lại những người đổi giọng.",
             bg=UI_NEN, fg=UI_PHU, font=ft(9), anchor="w", justify="left", wraplength=960), w).pack(fill="x", pady=(2, 8))
 
+        goi_y = lambda giong: any(k in giong for k in GOI_Y_BOSS)
+        chi_boss = tk.BooleanVar(value=False)
+
         hang = tk.Frame(w, bg=UI_NEN)
         hang.pack(fill="x")
         nut_phan = {}
@@ -1510,6 +1518,9 @@ class App:
         tim = tk.StringVar()
         tk.Entry(hang, textvariable=tim, bg=UI_O, fg=UI_CHU, insertbackground=UI_CHU, relief="flat",
                  font=ft(10), width=24).pack(side="left", ipady=3)
+        tk.Checkbutton(hang, text="Chỉ hiện gợi ý boss", variable=chi_boss, command=lambda: ve(), bg=UI_NEN, fg=UI_CHU,
+                       selectcolor=UI_O, activebackground=UI_NEN, activeforeground=UI_CHU,
+                       font=ft(10)).pack(side="left", padx=(14, 0))
         self._nut(hang, "Đọc lại danh sách", lambda: nap(st["phan"], True), nho=True).pack(side="right")
 
         kieu = ttk.Style(w)
@@ -1523,13 +1534,13 @@ class App:
         kieu.map("GV.Treeview", background=[("selected", UI_DO)], foreground=[("selected", "#ffffff")])
         khung = tk.Frame(w, bg=UI_NEN)
         khung.pack(fill="both", expand=True, pady=(8, 0))
-        cot = (("ten", "Nhân vật", 250), ("cau", "Số câu", 70), ("gt", "Giới tính giọng gốc", 150),
-               ("giong", "Giọng đang gán", 250), ("nguon", "Nguồn", 120))
+        cot = (("ten", "Nhân vật", 230), ("cau", "Số câu", 60), ("gy", "Boss?", 60),
+               ("gt", "Giới tính giọng gốc", 140), ("giong", "Giọng đang gán", 230), ("nguon", "Nguồn", 100))
         cay = ttk.Treeview(khung, columns=[c[0] for c in cot], show="headings", style="GV.Treeview",
                            selectmode="extended")
         for k, ten, rong in cot:
             cay.heading(k, text=ten)
-            cay.column(k, width=rong, anchor="w" if k in ("ten", "giong", "nguon", "gt") else "e")
+            cay.column(k, width=rong, anchor="w" if k in ("ten", "giong", "nguon", "gt", "gy") else "e")
         cuon = tk.Scrollbar(khung, command=cay.yview)
         cay.configure(yscrollcommand=cuon.set)
         cuon.pack(side="right", fill="y")
@@ -1572,8 +1583,11 @@ class App:
                 ten = giong[7:] if giong.startswith("unique_") else giong
                 if loc and loc not in ten.lower():
                     continue
+                if chi_boss.get() and not goi_y(giong):
+                    continue
                 gt, gan_ten, nguon, tag = sua_dong(ph, giong)
-                cay.insert("", "end", iid=giong, values=(ten, f'{ds[giong]["cau"]:,}'.replace(",", "."), gt, gan_ten, nguon),
+                cay.insert("", "end", iid=giong, values=(ten, f'{ds[giong]["cau"]:,}'.replace(",", "."),
+                                                         "boss?" if goi_y(giong) else "", gt, gan_ten, nguon),
                            tags=(tag,) if tag else ())
             for x in giu:
                 if cay.exists(x):
@@ -1620,12 +1634,14 @@ class App:
 
         cay.bind("<<TreeviewSelect>>", chon_dong)
 
-        def gan_giong():
+        def gan_giong(v=None):
             sel = list(cay.selection())
             if not sel:
                 thong_bao("Chưa chọn nhân vật nào – bấm vào tên nhân vật trong bảng trước.")
                 return
-            ph, v = st["phan"], hop.get()
+            ph, v = st["phan"], (v or hop.get())
+            if v != NHAI:
+                hop.set(v)
             if v != NHAI and v + ".wav" not in vcd.ViecDich.liet_ke_giong_rieng(lv):
                 thong_bao("Không thấy file giọng này trong thư mục giong_rieng.", UI_LOI)
                 return
@@ -1676,9 +1692,30 @@ class App:
             thong_bao("Đã lưu phân bổ giọng.", UI_XANH)
             return True
 
-        self._nut(h2, "Gán giọng", gan_giong, chinh=True).pack(side="left", padx=8)
+        self._nut(h2, "Gán giọng", lambda: gan_giong(), chinh=True).pack(side="left", padx=8)
         self._nut(h2, "Nghe thử", nghe, nho=True).pack(side="left")
         self._nut(h2, "Dừng", dung_nghe, nho=True).pack(side="left", padx=4)
+        hb = tk.Frame(w, bg=UI_NEN)
+        hb.pack(fill="x", pady=(8, 0))
+        tk.Label(hb, text="Boss:", bg=UI_NEN, fg=UI_CHU, font=ft(10)).pack(side="left", padx=(0, 6))
+
+        def chon_goi_y():
+            ph = st["phan"]
+            ids = [x for x in st["ds"].get(ph, {}) if goi_y(x) and cay.exists(x)]
+            cay.selection_set(ids)
+            if ids:
+                cay.see(ids[0])
+            thong_bao(f"Đã chọn {len(ids)} nhân vật giống boss theo tên. Bỏ chọn người không phải boss "
+                      "(Ctrl + bấm), rồi bấm \"Gán giọng boss nam\" hoặc \"boss nữ\" theo giới tính từng người.")
+
+        def gan_boss(ten):
+            if ten + ".wav" not in vcd.ViecDich.liet_ke_giong_rieng(lv):
+                thong_bao(f"Chưa có file {ten}.wav trong thư mục giong_rieng.", UI_LOI)
+                return
+            gan_giong(ten)
+        self._nut(hb, "Chọn các nhân vật gợi ý là boss", chon_goi_y, nho=True).pack(side="left")
+        self._nut(hb, "Gán giọng boss NAM", lambda: gan_boss("giong_boss_nam"), nho=True).pack(side="left", padx=4)
+        self._nut(hb, "Gán giọng boss NỮ", lambda: gan_boss("giong_boss_nu"), nho=True).pack(side="left")
         h3 = tk.Frame(w, bg=UI_NEN)
         h3.pack(fill="x", pady=(10, 0))
         self._nut(h3, "Lưu", luu).pack(side="left")
