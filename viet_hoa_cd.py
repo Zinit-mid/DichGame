@@ -1604,6 +1604,18 @@ class ViecDich:
                 with open(os.path.join(thu_ra, f["ten"] + f["duoi"]), "wb") as fh:
                     fh.write(cd.doc_tep(nhom, f))
                 ra.append(f["ten"] + f["duoi"])
+        # kich ban minigame thuan hoa (rodeo) nam o nhom 0014
+        n14 = os.path.join(self.thu_muc_game, "0014")
+        try:
+            for f in cd.doc_pamt_day_du(os.path.join(n14, "0.pamt")):
+                if "minigame_rodeo" in f["ten"] and f["duoi"] in (".paseq", ".paseqc", ".pastage"):
+                    bao(f"Đang xuất {f['ten']}{f['duoi']}...")
+                    sub = "bin_" if "binary__" in f["thu_muc"] else "goc_"
+                    with open(os.path.join(thu_ra, sub + f["ten"] + f["duoi"]), "wb") as fh:
+                        fh.write(cd.doc_tep(n14, f))
+                    ra.append(sub + f["ten"] + f["duoi"])
+        except Exception as e:
+            bao(f"(bỏ qua kịch bản rodeo: {e})")
         if not ra:
             raise LoiDung("không thấy bảng thú cưỡi trong nhóm 0008")
         return ra

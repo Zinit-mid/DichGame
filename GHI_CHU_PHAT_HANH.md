@@ -1,3 +1,7 @@
+## Dich Game v6.25.3
+
+- Nut "Xuat bang thu cuoi" xuat them kich ban minigame thuan hoa ngua (rodeo).
+
 ## Dich Game v6.25.2
 
 - Crimson Desert: nut "Xuat bang thu cuoi (lam mod bat ngua)" - chi doc game, xuat bang thu cuoi/minigame ra Desktop de lam mod thuan hoa ngua huyen thoai.
