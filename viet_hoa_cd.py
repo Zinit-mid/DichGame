@@ -1586,6 +1586,28 @@ class ViecDich:
             ds[tui] = p
         return {"bao_cao": bao_cao, "an_toan": ds[732], "tat_ca": ds[1440]}
 
+    # ---------------------------------------------------------- xuat bang thu cuoi (de lam mod bat ngua)
+    BANG_THU_CUOI = ("vehicleinfo", "minigamedatainfo", "characterinfo", "knowledgeinfo")
+
+    def xuat_bang_thu_cuoi(self, thu_ra, bao=lambda s: None):
+        """Chi DOC game: giai nen cac bang lien quan thu cuoi / minigame thuan hoa ra thu_ra de phan tich."""
+        nhom = os.path.join(self.thu_muc_game, "0008")
+        ds = cd.doc_pamt_day_du(os.path.join(nhom, "0.pamt"))
+        os.makedirs(thu_ra, exist_ok=True)
+        ra = []
+        for f in ds:
+            ten = f["ten"]
+            if ten.startswith("bin"):
+                ten = ten[3:]
+            if ten in self.BANG_THU_CUOI and f["duoi"] in (".staticinfobody", ".staticinfoheader"):
+                bao(f"Đang xuất {f['ten']}{f['duoi']}...")
+                with open(os.path.join(thu_ra, f["ten"] + f["duoi"]), "wb") as fh:
+                    fh.write(cd.doc_tep(nhom, f))
+                ra.append(f["ten"] + f["duoi"])
+        if not ra:
+            raise LoiDung("không thấy bảng thú cưỡi trong nhóm 0008")
+        return ra
+
     # ---------------------------------------------------------- xuat goi DMM
     def xuat_goi(self, duong_dan_zip):
         tam = os.path.join(THU_MUC_CD, "goi_tam")

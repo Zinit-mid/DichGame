@@ -1127,6 +1127,8 @@ class App:
         self._nut(hang3, "Đóng gói lại giọng Việt cho DMM", lambda: self._cd_dong_giong(g),
                   nho=True).pack(side="left", padx=6)
         self._nut(hang3, "Mod tăng ô chứa đồ 1440", lambda: self._cd_mod_tui_do(g), nho=True).pack(side="left")
+        self._nut(hang3, "Xuất bảng thú cưỡi (làm mod bắt ngựa)", lambda: self._cd_xuat_thu_cuoi(g),
+                  nho=True).pack(side="left", padx=6)
         hang5 = tk.Frame(w, bg=UI_NEN)
         hang5.pack(fill="x", pady=(8, 4))
         tk.Label(hang5, text="Âm lượng giọng Việt:", bg=UI_NEN, fg=UI_CHU,
@@ -1302,6 +1304,24 @@ class App:
                     pass
             except Exception as e:
                 bao(f"Lỗi tạo mod: {e}")
+        threading.Thread(target=chay, daemon=True).start()
+
+    def _cd_xuat_thu_cuoi(self, g):
+        if self.cd_viec is None or self.cd_dang_chay:
+            return
+        ra = os.path.join(thu_muc_desktop(), "BangThuCuoi_CrimsonDesert")
+        viec = self.cd_viec
+
+        def bao(s):
+            self.q.put(("goi", lambda s=s: self.cd_tien_do.config(text=s, fg=UI_VANG)))
+
+        def chay():
+            try:
+                kq = viec.xuat_bang_thu_cuoi(ra, bao)
+                chu = f"Đã xuất {len(kq)} file ra Desktop\\BangThuCuoi_CrimsonDesert (chỉ đọc game). Báo Claude là xong."
+                self.q.put(("goi", lambda: self.cd_tien_do.config(text=chu, fg=UI_XANH)))
+            except Exception as e:
+                bao(f"Lỗi xuất bảng: {e}")
         threading.Thread(target=chay, daemon=True).start()
 
     def _cd_trich_giong(self, g):

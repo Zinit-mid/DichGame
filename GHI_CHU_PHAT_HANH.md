@@ -1,3 +1,7 @@
+## Dich Game v6.25.2
+
+- Crimson Desert: nut "Xuat bang thu cuoi (lam mod bat ngua)" - chi doc game, xuat bang thu cuoi/minigame ra Desktop de lam mod thuan hoa ngua huyen thoai.
+
 ## Dịch Game v6.25.1
 
 - Gán giọng nhân vật: thêm cột "Boss?" (gợi ý theo tên), ô "Chỉ hiện gợi ý boss", nút "Chọn các nhân vật gợi ý là boss" và hai nút "Gán giọng boss NAM / NỮ" (dùng giong_boss_nam.wav, giong_boss_nu.wav trong thư mục giong_rieng).
