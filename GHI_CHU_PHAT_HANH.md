@@ -1,3 +1,7 @@
+## Dich Game v6.25.4
+
+- Nut "Xuat bang thu cuoi" xuat them giao dien minigame thuan hoa ngua (rodeo) de lam mod.
+
 ## Dich Game v6.25.3
 
 - Nut "Xuat bang thu cuoi" xuat them kich ban minigame thuan hoa ngua (rodeo).

@@ -1616,6 +1616,18 @@ class ViecDich:
                     ra.append(sub + f["ten"] + f["duoi"])
         except Exception as e:
             bao(f"(bỏ qua kịch bản rodeo: {e})")
+        # giao dien minigame thuan hoa ngua (rodeo) nam o nhom 0012
+        n12 = os.path.join(self.thu_muc_game, "0012")
+        try:
+            for f in cd.doc_pamt_day_du(os.path.join(n12, "0.pamt")):
+                if "rodeominigameview" in f["ten"] or "minigame_rodeo" in f["ten"]:
+                    if f["duoi"] in (".html", ".css", ".uibinary", ".xml"):
+                        bao(f"Đang xuất {f['ten']}{f['duoi']}...")
+                        with open(os.path.join(thu_ra, "ui_" + f["ten"] + f["duoi"]), "wb") as fh:
+                            fh.write(cd.doc_tep(n12, f))
+                        ra.append("ui_" + f["ten"] + f["duoi"])
+        except Exception as e:
+            bao(f"(bỏ qua giao diện rodeo: {e})")
         if not ra:
             raise LoiDung("không thấy bảng thú cưỡi trong nhóm 0008")
         return ra
