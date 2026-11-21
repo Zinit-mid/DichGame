@@ -1,3 +1,8 @@
+## Dich Game v6.26.0
+
+- Thu vien game: moi game deu co nut "Lồng tiếng". Game chua co cong cu rieng: bat long tieng theo phu de (doc phu de bang giong Viet) va quet file am thanh de biet co lam duoc long tieng thay file khong.
+- Game chua co cong cu Viet hoa rieng co nut "Việt hóa" huong dan 2 buoc: Do file chu, Nap ban dich.
+
 ## Dich Game v6.25.4
 
 - Nut "Xuat bang thu cuoi" xuat them giao dien minigame thuan hoa ngua (rodeo) de lam mod.

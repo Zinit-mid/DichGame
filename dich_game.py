@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.25.4"
+APP_VERSION = "6.26.0"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -2216,7 +2216,7 @@ class App:
         try:
             import viet_hoa
             self.thu_vien = viet_hoa.ThuVien(self.root, trang, self._tao_cuon, self._f, self._p,
-                                             mo_cong_cu=self._mo_cong_cu)
+                                             mo_cong_cu=self._mo_cong_cu, bat_doc_phu_de=self._bat_doc_phu_de)
             self.thu_vien.khi_doi_ds = self._cap_nhat_menu_cong_cu
         except Exception as e:
             self.thu_vien = None
@@ -2270,6 +2270,15 @@ class App:
             self.ban_do = ban_do_cd.TrangBanDo(t, self._f, self._p, DU_LIEU)
         except Exception as e:
             tk.Label(t, text=f"Không mở được trang bản đồ: {e}", bg=UI_NEN, fg=UI_LOI, font=self._f(10)).pack(pady=20)
+
+    def _bat_doc_phu_de(self):
+        """Nut Long tieng (game chua co cong cu rieng): bat giong doc roi mo trang Dich man hinh."""
+        self.cfg["giong_doc"] = True
+        if not self.giong.co_thu_vien():
+            self._bao("Thiếu thư viện edge-tts – hãy cập nhật lên bản exe mới.", "loi")
+        self._luu_cau_hinh()
+        self._chon_trang("dich")
+        self._bao("Đã bật giọng đọc. Chọn vùng phụ đề rồi bấm bắt đầu dịch.", "ok")
 
     def _mo_cong_cu(self, ma, g):
         ma_trang = "cc_" + ma

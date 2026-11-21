@@ -1860,7 +1860,7 @@ class ThuVien(App):
     """Cot trai: danh sach game; cot giua: chi tiet game dang chon + nut 1 cham.
     Dung chung moi chuc nang cua App (quet, cai, khoi phuc, Viet hoa Crimson Desert)."""
 
-    def __init__(self, root, trang, tao_cuon, f=None, p=None, mo_cong_cu=None):
+    def __init__(self, root, trang, tao_cuon, f=None, p=None, mo_cong_cu=None, bat_doc_phu_de=None):
         import tkinter as tk
         from tkinter import filedialog, messagebox
         self.nhung = True
@@ -1881,6 +1881,7 @@ class ThuVien(App):
         self.tao_cuon = tao_cuon
         self.khung = trang
         self.mo_cong_cu = mo_cong_cu or (lambda ma, g: self.mo_cd(g) if ma == "cd" else self.mo_rottr(g))
+        self.bat_doc_phu_de = bat_doc_phu_de
         self.khi_doi_ds = None
         self._giao_dien()
         self.root.after(100, self._xu_ly_hang_doi)
@@ -2058,6 +2059,10 @@ class ThuVien(App):
                    "khac_phien_ban": "Vẫn cài"}[tt]
             self._nut(nut, chu, lambda: self.cai(g, goi), chinh=True, nho=True, bieu_tuong="⬇").pack(
                 side="left", padx=(0, P(6)))
+        if not (cd or rt):
+            self._nut(nut, "Việt hóa", lambda: self.mo_huong_dan_viet_hoa(g), nho=True,
+                      bieu_tuong="▶").pack(side="left", padx=(0, P(6)))
+        self._nut(nut, "Lồng tiếng", lambda: self.mo_long_tieng_chung(g), nho=True).pack(side="left", padx=(0, P(6)))
         self._nut(nut, "Nạp bản dịch", lambda: self.nap_tu_file(g), nho=True).pack(side="left", padx=(0, P(6)))
         self._nut(nut, "Dò file chữ", lambda: self.mo_do_file(g), nho=True).pack(side="left", padx=(0, P(6)))
         if bg:
@@ -2589,6 +2594,122 @@ class ThuVien(App):
             return
         self.rt_tien_do.config(text="Đã gỡ Việt hóa – game trở lại tiếng Anh ✓", fg=UI_XANH)
         self._rt_da_nap(self.rt_viec)
+
+    # ---------- Viet hoa / Long tieng chung cho moi game
+    DUOI_AM_THANH = {".wem": "Wwise (.wem)", ".bnk": "Wwise (.bnk)", ".pck": "Wwise (.pck)",
+                     ".fsb": "FMOD (.fsb)", ".bank": "FMOD (.bank)", ".ogg": "Ogg", ".wav": "Wav", ".mp3": "Mp3",
+                     ".xwb": "XACT (.xwb)", ".awb": "CRI (.awb)", ".acb": "CRI (.acb)", ".usm": "Video (.usm)",
+                     ".opus": "Opus", ".flac": "Flac", ".at9": "Atrac9 (.at9)", ".snd": "Snd"}
+
+    @classmethod
+    def quet_am_thanh(cls, thu_muc, toi_da=300000, toi_da_giay=25):
+        """Dem file am thanh trong thu muc game (chi doc, co gioi han de khong treo)."""
+        dem, kich, n, t0, cat = {}, {}, 0, time.time(), False
+        for goc, _, tep in os.walk(thu_muc):
+            for f in tep:
+                n += 1
+                d = os.path.splitext(f)[1].lower()
+                if d in cls.DUOI_AM_THANH:
+                    dem[d] = dem.get(d, 0) + 1
+                    try:
+                        kich[d] = kich.get(d, 0) + os.path.getsize(os.path.join(goc, f))
+                    except OSError:
+                        pass
+            if n > toi_da or time.time() - t0 > toi_da_giay:
+                cat = True
+                break
+        return dem, kich, cat
+
+    def mo_huong_dan_viet_hoa(self, g):
+        tk = self.tk
+        w = tk.Toplevel(self.root)
+        w.title(f"Việt hóa – {g['ten']}")
+        w.configure(bg=UI_NEN)
+        w.geometry(f"{self.p(640)}x{self.p(380)}")
+        tk.Label(w, text=f"Việt hóa {g['ten']}", bg=UI_NEN, fg=UI_CHU, font=self.f(13, "bold"), anchor="w").pack(
+            fill="x", padx=self.p(16), pady=(self.p(14), self.p(4)))
+        chu = ("Game này chưa có công cụ Việt hóa riêng và chưa có gói Việt hóa làm sẵn. "
+               "Cách làm chung cho mọi game gồm 2 bước:\n\n"
+               "1. Bấm \"Dò file chữ\": app tìm các file chứa chữ trong game.\n"
+               "2. Dịch xong thì bấm \"Nạp bản dịch\" để đưa chữ Việt vào game (có sao lưu bản gốc, bấm \"Gỡ\" để trả lại).\n\n"
+               "Cách này chỉ chạy được khi chữ nằm trong file đọc được. Nếu file bị mã hóa hoặc đóng gói kiểu riêng, "
+               "cần làm công cụ riêng cho game đó. Khi đó bạn hãy nhắn Claude tên game.\n\n"
+               "Muốn đọc chữ ngay trong lúc chơi mà không cần sửa file game: dùng mục \"Dịch màn hình\" ở menu trái.")
+        l = tk.Label(w, text=chu, bg=UI_NEN, fg=UI_CHU, font=self.f(10), justify="left", anchor="nw",
+                     wraplength=self.p(600))
+        l.pack(fill="both", expand=True, padx=self.p(16))
+        hang = tk.Frame(w, bg=UI_NEN)
+        hang.pack(fill="x", padx=self.p(16), pady=self.p(14))
+        self._nut(hang, "1. Dò file chữ", lambda: (w.destroy(), self.mo_do_file(g)), chinh=True, nho=True).pack(
+            side="left", padx=(0, self.p(6)))
+        self._nut(hang, "2. Nạp bản dịch", lambda: (w.destroy(), self.nap_tu_file(g)), nho=True).pack(side="left")
+        self._nut(hang, "Đóng", w.destroy, nho=True).pack(side="right")
+
+    def mo_long_tieng_chung(self, g):
+        """Nut Long tieng cho MOI game: quet file am thanh + che do doc phu de bang giong Viet."""
+        if la_crimson(g):
+            return self.mo_cong_cu("cd", g)
+        if loai_tr(g):
+            return self.mo_cong_cu(self.ma_cong_cu(g), g)
+        tk = self.tk
+        w = tk.Toplevel(self.root)
+        w.title(f"Lồng tiếng – {g['ten']}")
+        w.configure(bg=UI_NEN)
+        w.geometry(f"{self.p(700)}x{self.p(520)}")
+        tk.Label(w, text=f"Lồng tiếng {g['ten']}", bg=UI_NEN, fg=UI_CHU, font=self.f(13, "bold"), anchor="w").pack(
+            fill="x", padx=self.p(16), pady=(self.p(14), self.p(4)))
+
+        def doan(tieu_de, noi_dung):
+            tk.Label(w, text=tieu_de, bg=UI_NEN, fg=UI_XANH, font=self.f(10, "bold"), anchor="w").pack(
+                fill="x", padx=self.p(16), pady=(self.p(10), 0))
+            x = tk.Label(w, text=noi_dung, bg=UI_NEN, fg=UI_CHU, font=self.f(10), justify="left", anchor="nw",
+                         wraplength=self.p(660))
+            x.pack(fill="x", padx=self.p(16))
+            return x
+
+        doan("Dùng được ngay với mọi game: lồng tiếng theo phụ đề",
+             "App đọc phụ đề đang hiện trên màn hình, dịch sang tiếng Việt rồi đọc bằng giọng Việt. "
+             "Không sửa file game nên không có rủi ro. Bấm nút dưới, chọn vùng phụ đề ở trang Dịch màn hình, "
+             "rồi vào game chơi (đặt game ở chế độ cửa sổ không viền).")
+        hang = tk.Frame(w, bg=UI_NEN)
+        hang.pack(fill="x", padx=self.p(16), pady=(self.p(8), 0))
+
+        def bat():
+            try:
+                if self.bat_doc_phu_de:
+                    self.bat_doc_phu_de()
+                w.destroy()
+            except Exception as e:
+                self._bao(f"Không bật được lồng tiếng theo phụ đề: {e}")
+        self._nut(hang, "Bật lồng tiếng theo phụ đề", bat, chinh=True, nho=True).pack(side="left")
+        kq = doan("Lồng tiếng thay file giọng gốc của game", "Đang quét file âm thanh trong thư mục game...")
+
+        def chay():
+            try:
+                dem, kich, cat = self.quet_am_thanh(g["thu_muc"])
+            except Exception as e:
+                self.q.put(("goi", lambda e=e: kq.config(text=f"Không quét được: {e}")))
+                return
+            if not dem:
+                chu = "Không thấy file âm thanh rời trong thư mục game (có thể đã đóng gói trong file lớn)."
+            else:
+                dong = [f"• {self.DUOI_AM_THANH[d]}: {n:,} file ({kich.get(d, 0) / 1048576:,.0f} MB)"
+                        for d, n in sorted(dem.items(), key=lambda x: -kich.get(x[0], 0))]
+                goi_y = ""
+                if any(d in dem for d in (".wem", ".bnk", ".pck")):
+                    goi_y = ("\n\nÂm thanh kiểu Wwise, giống Crimson Desert. Có thể làm lồng tiếng thay file, "
+                             "nhưng cần làm công cụ riêng cho game này.")
+                elif any(d in dem for d in (".fsb", ".bank")):
+                    goi_y = "\n\nÂm thanh kiểu FMOD. Có thể làm được nhưng cần công cụ riêng cho game này."
+                elif any(d in dem for d in (".ogg", ".wav", ".mp3")):
+                    goi_y = "\n\nÂm thanh là file rời phổ biến, nên khả năng thay file khá dễ. Cần công cụ riêng cho game này."
+                chu = "\n".join(dong[:8]) + goi_y + ("\n(đã quét một phần thư mục lớn)" if cat else "")
+                chu += "\n\nHiện app chưa có công cụ thay file giọng cho game này. Nhắn Claude tên game để làm."
+            self.q.put(("goi", lambda: kq.config(text=chu)))
+        threading.Thread(target=chay, daemon=True).start()
+        hang2 = tk.Frame(w, bg=UI_NEN)
+        hang2.pack(fill="x", padx=self.p(16), pady=self.p(14), side="bottom")
+        self._nut(hang2, "Đóng", w.destroy, nho=True).pack(side="right")
 
     # ---------- Do file chu (moi game)
     def mo_do_file(self, g):
