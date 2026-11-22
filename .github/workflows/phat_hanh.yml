@@ -48,12 +48,10 @@ jobs:
       - name: Dong goi DichGame.exe
         if: steps.pb.outputs.co_roi == '0'
         shell: pwsh
-        run: >
-          python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame
-          --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --add-data "fonts;fonts" --hidden-import giao_dien --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import viet_hoa_rottr --hidden-import viet_hoa_tr --hidden-import rottr_mul --hidden-import phien_am --hidden-import do_phong_rottr --hidden-import font_viet --hidden-import font_rottr --hidden-import do_file_chu --hidden-import phu_de_phim --hidden-import noi_luu_ai --hidden-import ban_do_cd --hidden-import crimson_desert --collect-submodules cryptography
-          --collect-all winocr --collect-all winrt --collect-all windows_capture
-          --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw
-          dich_game.py
+        run: |
+          $wr = python -c "import winrt; print(list(winrt.__path__)[0])"
+          Write-Host "winrt: $wr"
+          python -m PyInstaller --noconfirm --onefile --noconsole --name DichGame --icon icon.ico --add-data "icon.ico;." --add-data "danh_muc.json;." --add-data "fonts;fonts" --hidden-import giao_dien --hidden-import viet_hoa --hidden-import viet_hoa_cd --hidden-import viet_hoa_rottr --hidden-import viet_hoa_tr --hidden-import rottr_mul --hidden-import phien_am --hidden-import do_phong_rottr --hidden-import font_viet --hidden-import font_rottr --hidden-import do_file_chu --hidden-import phu_de_phim --hidden-import noi_luu_ai --hidden-import ban_do_cd --hidden-import crimson_desert --collect-submodules cryptography --collect-all winocr --collect-all winrt --collect-all windows_capture --collect-all bettercam --collect-all dxcam --collect-all comtypes --collect-all ctranslate2 --collect-all sentencepiece --collect-all edge_tts --collect-all pycaw --add-data "$wr;winrt" dich_game.py
 
       - name: Tao goi phat hanh
         if: steps.pb.outputs.co_roi == '0'

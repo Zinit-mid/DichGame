@@ -1,3 +1,7 @@
+## Dịch Game v6.27.1
+
+- Sửa lỗi "winrt.windows.foundation could not read its projection table" khi bật dịch (thiếu file của bộ đọc chữ Windows trong bản đóng gói).
+
 ## Dịch Game v6.27.0
 
 - MỚI: CHE CHỮ GỐC – chữ Việt hiện đè đúng chỗ chữ tiếng Anh, ô che cùng màu nền game, chữ cùng màu chữ gốc, tự thu nhỏ cho vừa.
