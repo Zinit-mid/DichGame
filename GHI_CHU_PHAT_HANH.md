@@ -1,3 +1,7 @@
+## Dịch Game v6.27.2
+
+- Sửa tận gốc lỗi "could not read its projection table": nguyên nhân là thư mục tạm của app (Temp\_MEI…) bị xóa trong lúc app đang chạy (thường do phần mềm dọn dẹp). App giờ nạp sẵn bộ đọc chữ ngay khi mở nên không còn phụ thuộc thư mục tạm.
+
 ## Dịch Game v6.27.1
 
 - Sửa lỗi "winrt.windows.foundation could not read its projection table" khi bật dịch (thiếu file của bộ đọc chữ Windows trong bản đóng gói).

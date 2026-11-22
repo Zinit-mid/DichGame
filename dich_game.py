@@ -20,7 +20,7 @@ Phim tat mac dinh (doi duoc trong cau_hinh.json):
   Ctrl+Shift+Q  thoat
 """
 
-APP_VERSION = "6.27.1"
+APP_VERSION = "6.27.2"
 REPO_CAP_NHAT = "Zinit-mid/DichGame"  # kho GitHub chua ban phat hanh
 
 import concurrent.futures
@@ -619,6 +619,17 @@ def ve_chu_vua_o(cv, x, y, w, h, chu, mau, co_goc, can="left", dam="bold"):
             return t, b
         cv.delete(t)
         co = max(10, int(co * 0.9))
+
+
+def _khoi_dong_ocr():
+    """Goi OCR 1 lan luc mo app: bo doc chu Windows (pywinrt) nap san bang chieu vao bo nho.
+    Neu sau do thu muc tam _MEIxxxx bi phan mem don dep xoa mat, OCR van chay (tranh loi
+    'could not read its projection table')."""
+    try:
+        anh = Image.new("RGB", (160, 40), "white")
+        winocr.recognize_pil_sync(anh, "en")
+    except Exception:
+        pass
 
 
 def loc_chu_trang(anh, nguong):
@@ -1939,6 +1950,7 @@ class App:
         self.lbl_xem = {}
         self.toan_man = LopToanManHinh(self.root, self.man)
         self.toan_man.che = bool(self.cfg.get("che_chu_goc", True))
+        threading.Thread(target=_khoi_dong_ocr, daemon=True).start()
         self.vung_dang_sua = self.cfg["cac_vung"][0]["id"]
         self.hien_ban_dich = True
         self.dang_chon = False
