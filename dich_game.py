@@ -121,6 +121,7 @@ CAU_HINH_MAC_DINH = {
                  vung_moi("nhiem_vu", "Nhiệm vụ", "co_dinh")],
     "nguong_chu_trang": 185,
     "kieu_hien": "phu_de",
+    "che_chu_goc": True,          # ve o cung mau nen de che chu tieng Anh, viet chu Viet de len
     "vien_chu": 2,
     "do_dam_chu": 1.0,
     "do_mo": 0.85,
@@ -576,6 +577,48 @@ def ocr_tho(anh):
 
 def doc_chu(anh):
     return [t for t, _ in ocr_tho(anh)]
+
+
+def _hex(m):
+    return "#%02x%02x%02x" % tuple(int(max(0, min(255, c))) for c in m[:3])
+
+
+def mau_che(anh, hop, le=4):
+    """Mau nen (xung quanh chu) va mau chu trong o `hop` (x, y, w, h) cua anh -> ("#nen", "#chu")."""
+    try:
+        import numpy as np
+        x, y, w, h = [int(round(v)) for v in hop]
+        W, H = anh.size
+        x0, y0, x1, y1 = max(0, x - le), max(0, y - le), min(W, x + w + le), min(H, y + h + le)
+        a = np.asarray(anh.convert("RGB").crop((x0, y0, x1, y1)), dtype=np.int16)
+        if a.size == 0:
+            return "#17171d", "#ffffff"
+        mask = np.ones(a.shape[:2], bool)
+        mask[max(0, y - y0):max(0, y - y0) + h, max(0, x - x0):max(0, x - x0) + w] = False
+        vien = a[mask] if mask.any() else a.reshape(-1, 3)
+        trong = a[~mask] if (~mask).any() else a.reshape(-1, 3)
+        nen = np.median(vien.reshape(-1, 3), axis=0)
+        kc = np.abs(trong.reshape(-1, 3) - nen).sum(axis=1)
+        nguong = np.percentile(kc, 93)
+        chu = np.median(trong.reshape(-1, 3)[kc >= nguong], axis=0) if (kc >= nguong).any() else nen
+        if np.abs(chu - nen).sum() < 120:          # chu khong ro -> trang/den tuong phan voi nen
+            chu = np.array([0, 0, 0]) if nen.mean() > 140 else np.array([255, 255, 255])
+        return _hex(nen), _hex(chu)
+    except Exception:
+        return "#17171d", "#ffffff"
+
+
+def ve_chu_vua_o(cv, x, y, w, h, chu, mau, co_goc, can="left", dam="bold"):
+    """Viet chu vao o (x, y, w, h): co chu bat dau tu co_goc, thu nho den khi vua; -> bbox."""
+    co = max(10, int(co_goc))
+    while True:
+        t = cv.create_text(x if can == "left" else x + w / 2, y, text=chu, font=(gd.FONT, -co, dam), fill=mau,
+                           width=max(40, w), anchor="nw" if can == "left" else "n", justify=can)
+        b = cv.bbox(t) or (x, y, x + w, y + h)
+        if (b[3] - b[1] <= h * 1.08 and b[2] - b[0] <= w * 1.02) or co <= 10:
+            return t, b
+        cv.delete(t)
+        co = max(10, int(co * 0.9))
 
 
 def loc_chu_trang(anh, nguong):
@@ -1611,12 +1654,26 @@ class KhungBanDich:
         self.vien = 2
         self._keo = None
         self._ve_cuoi = None
+        self.che = None          # (x, y, w, h, mau nen, mau chu, cao dong): ve de len chu goc
         self.cv.bind("<ButtonPress-1>", self._nhan)
         self.cv.bind("<B1-Motion>", self._di)
         self.cv.bind("<ButtonRelease-1>", self._tha)
         self.cv.bind("<MouseWheel>", self._lan)
 
+    def _ve_che(self):
+        x, y, w, h, nen, mau, cao = self.che
+        cv = self.cv
+        cv.delete("all")
+        cv.configure(bg=nen)
+        t, b = ve_chu_vua_o(cv, 4, 3, w - 8, h - 6, self.van_ban, mau, cao * 0.9,
+                            can="center" if self.can_giua else "left")
+        h2 = max(h, int(b[3]) + 4)               # chu Viet dai hon -> keo o xuong cho vua
+        self.h = h2
+        self.win.geometry(f"{w}x{h2}+{x}+{y}")
+
     def _ve(self):
+        if self.che and not self.dang_chinh:
+            return self._ve_che()
         cv, le = self.cv, self.LE
         cv.delete("all")
         font = (gd.FONT, self.co_chu, "bold")
@@ -1655,7 +1712,7 @@ class KhungBanDich:
 
     def hien(self, van_ban, ten, can_giua, x, y, w, co_chu, kieu, do_dam, vien):
         trang_thai = (van_ban, ten, can_giua, int(x), int(y), int(w), int(co_chu), kieu, do_dam, int(vien),
-                      self.dang_chinh)
+                      self.dang_chinh, self.che)
         if trang_thai == self._ve_cuoi and self.dang_hien:
             return
         self._ve_cuoi = trang_thai
@@ -1664,7 +1721,7 @@ class KhungBanDich:
         self.co_chu, self.kieu, self.vien = int(co_chu), kieu, int(vien)
         if not self.da_cai_dat:
             self._cai_dat_lan_dau()
-        self.win.attributes("-alpha", 0.95 if self.dang_chinh else do_dam)
+        self.win.attributes("-alpha", 0.95 if self.dang_chinh else (1.0 if self.che else do_dam))
         self._ve()
         self.win.deiconify()
         self.win.lift()
@@ -1739,6 +1796,7 @@ class LopToanManHinh:
         self.da_cai_dat = False
         self.dang_hien = False
         self._chu_ky = None
+        self.che = True
 
     def _mo(self):
         m = self.man
@@ -1766,13 +1824,23 @@ class LopToanManHinh:
         self._mo()
 
     def hien(self, cac_doan, ghi_chu):
-        chu_ky = (tuple((vi, hop[0] // 8, hop[1] // 8) for vi, hop, _ in cac_doan), ghi_chu)
+        chu_ky = (tuple((d[0], d[1][0] // 8, d[1][1] // 8, d[3] if len(d) > 3 else None) for d in cac_doan),
+                  ghi_chu, self.che)
         if chu_ky == self._chu_ky and self.dang_hien:
             return
         self._chu_ky = chu_ky
         cv = self.cv
         cv.delete("all")
-        for vi, (x, y, w, h), cao_dong in cac_doan:
+        for doan in cac_doan:
+            vi, (x, y, w, h), cao_dong = doan[:3]
+            mau = doan[3] if len(doan) > 3 else None
+            if self.che and mau:            # che chu goc: o cung mau nen, chu Viet cung mau chu goc
+                nen, mau_chu = mau
+                t, b = ve_chu_vua_o(cv, x, y, w, h, vi, mau_chu, cao_dong * 0.85)
+                r = cv.create_rectangle(min(b[0], x) - 4, min(b[1], y) - 3, max(b[2], x + w) + 4,
+                                        max(b[3], y + h) + 3, fill=nen, outline="")
+                cv.tag_lower(r, t)
+                continue
             font = (gd.FONT, -max(12, int(cao_dong * 0.8)))
             t = cv.create_text(x, y, text=vi, font=font, fill=MAU_CHU, width=max(w, 160), anchor="nw")
             b = cv.bbox(t) or (x, y, x + w, y + h)
@@ -1832,6 +1900,7 @@ class TrangThai:
         self.lan_xem = 0.0
         self.t_doi_chu = 0.0
         self.t_doc = 0.0
+        self.che = None          # (hop chu trong vung, (mau nen, mau chu), cao 1 dong) – de che chu goc
 
 
 # ================================================================ App chinh
@@ -1869,6 +1938,7 @@ class App:
         self.anh_xem = {}
         self.lbl_xem = {}
         self.toan_man = LopToanManHinh(self.root, self.man)
+        self.toan_man.che = bool(self.cfg.get("che_chu_goc", True))
         self.vung_dang_sua = self.cfg["cac_vung"][0]["id"]
         self.hien_ban_dich = True
         self.dang_chon = False
@@ -2410,6 +2480,11 @@ class App:
         h = self._hang_le(r)
         khung, self.nut_kieu = self._cap(h, [("phu_de", "Phụ đề (chỉ chữ)"), ("khung", "Khung nền tối")],
                                          lambda g: self.lenh("kieu_" + g))
+        khung.pack(side="left")
+        h = self._hang_le(r)
+        self._nhan(h, "Che chữ gốc của game:", UI_PHU, self._f(9)).pack(side="left", padx=(0, P(6)))
+        khung, self.nut_che = self._cap(h, [("bat", "Bật (chữ Việt đè lên chữ gốc)"), ("tat", "Tắt")],
+                                        lambda g: self.lenh("che_" + g))
         khung.pack(side="left")
         self.cv_mau = tk.Canvas(r, height=P(78), bg="#2d3a2a", highlightthickness=0)
         self.cv_mau.pack(fill="x", padx=P(16), pady=(P(6), P(4)))
@@ -3167,6 +3242,8 @@ class App:
             self._dat_mau_nut(b, (g == "lien_tuc") == bool(c["toan_man_lien_tuc"]))
         for g, b in self.nut_kieu.items():
             self._dat_mau_nut(b, c["kieu_hien"] == g)
+        for g, b in getattr(self, "nut_che", {}).items():
+            self._dat_mau_nut(b, (g == "bat") == bool(c.get("che_chu_goc")))
         phu_de = c["kieu_hien"] == "phu_de"
         self.lbl_dam_ten.config(text="Độ đậm chữ" if phu_de else "Độ đậm nền khung")
         dam = round((c['do_dam_chu'] if phu_de else c['do_mo']) * 100)
@@ -3593,6 +3670,13 @@ class App:
             c["gioi_han_ngay_usd"] = float(ten[9:])
             self._bao("Đã bỏ giới hạn tiền mỗi ngày." if not c["gioi_han_ngay_usd"]
                       else f"Giới hạn {c['gioi_han_ngay_usd']:.2f} USD/ngày – tới mức này Claude tự tắt tới ngày mai.")
+        elif ten in ("che_bat", "che_tat"):
+            c["che_chu_goc"] = ten == "che_bat"
+            self.toan_man.che = c["che_chu_goc"]
+            self.toan_man._chu_ky = None
+            self._bao("Che chữ gốc: BẬT – chữ Việt hiện đè đúng chỗ chữ tiếng Anh." if c["che_chu_goc"]
+                      else "Che chữ gốc: TẮT – bản dịch hiện trong khung riêng như cũ.")
+            self._ve_lai()
         elif ten in ("kieu_phu_de", "kieu_khung"):
             c["kieu_hien"] = "phu_de" if ten == "kieu_phu_de" else "khung"
             self._xem_thu()
@@ -3686,8 +3770,18 @@ class App:
             hien = kd and not self.dang_chon and (self.dang_chinh_khung or (self.hien_ban_dich and chu))
             if hien:
                 do_dam = c["do_dam_chu"] if c["kieu_hien"] == "phu_de" else c["do_mo"]
-                self._khung(ma).hien(chu, v["ten"], v["loai"] == "phu_de", kd[0], kd[1], kd[2], v["co_chu"],
-                                     c["kieu_hien"], do_dam, c["vien_chu"])
+                k = self._khung(ma)
+                st = self.trang_thai.get(ma) if hasattr(self, "trang_thai") else None
+                che = getattr(st, "che", None) if st is not None else None
+                if c.get("che_chu_goc") and che and v.get("vung") and not self.dang_chinh_khung \
+                        and self.van_ban.get(ma):
+                    (hx, hy, hw, hh), mau, cao = che
+                    k.che = (int(v["vung"][0] + hx) - 4, int(v["vung"][1] + hy) - 3, int(hw) + 8, int(hh) + 6,
+                             mau[0], mau[1], cao)
+                else:
+                    k.che = None
+                k.hien(chu, v["ten"], v["loai"] == "phu_de", kd[0], kd[1], kd[2], v["co_chu"],
+                       c["kieu_hien"], do_dam, c["vien_chu"])
             elif ma in self.khung:
                 self.khung[ma].an()
         for ma in list(self.khung):
@@ -3851,7 +3945,16 @@ class App:
             chu = st.chu_ocr
         else:
             try:
-                chu = lam_sach(doc_chu(anh_doc))
+                dong_ocr = ocr_tho(anh_doc)
+                chu = lam_sach([t for t, _ in dong_ocr])
+                o = [b for t, b in dong_ocr if b and dong_hop_le(t)]
+                if o:
+                    x0, y0 = min(b[0] for b in o), min(b[1] for b in o)
+                    x1, y1 = max(b[0] + b[2] for b in o), max(b[1] + b[3] for b in o)
+                    hop_chu = (x0, y0, x1 - x0, y1 - y0)
+                    st.che = (hop_chu, mau_che(anh, hop_chu), (y1 - y0) / len(o))
+                else:
+                    st.che = None
             except Exception as e:
                 self.q.put(("trang_thai", "Không đọc được chữ. Có thể Windows chưa cài gói đọc chữ "
                                           f"tiếng Anh (xem HUONG_DAN.txt). Lỗi: {e}"))
@@ -4076,7 +4179,7 @@ class App:
 
     def _gui_toan_man(self, mot_lan, dang_cho=False):
         with self.khoa_tm:
-            ds = [(d["vi"], d["hop"], d["cao"]) for d in self.doan_tm
+            ds = [(d["vi"], d["hop"], d["cao"], d.get("mau")) for d in self.doan_tm
                   if d["vi"] and d["vi"].strip().lower() != d["en"].strip().lower()]
             tong = len(self.doan_tm)
         phim = self.cfg["phim_tat"]["dich_man_hinh"].upper()
@@ -4110,12 +4213,14 @@ class App:
                         break
                 if chon is None:
                     cu.append({"en": chu, "hop": hop, "cao": cao, "vi": None, "nguon": None, "vang": 0,
-                               "lan_thay": 1, "dang_g": False, "dang_c": False})
+                               "lan_thay": 1, "dang_g": False, "dang_c": False, "mau": mau_che(anh, hop)})
                     da_khop.add(len(cu) - 1)
                 else:
                     d = cu[chon]
                     da_khop.add(chon)
                     d.update(hop=hop, cao=cao, vang=0)
+                    if d["lan_thay"] % 4 == 0 or not d.get("mau"):
+                        d["mau"] = mau_che(anh, hop)       # cap nhat mau nen thinh thoang
                     d["lan_thay"] += 1
                     if not chu_giong(so_hoa(d["en"]), so_hoa(chu), 0.85):  # chu doi that su
                         d.update(en=chu, vi=None, nguon=None, lan_thay=1, dang_g=False, dang_c=False)

@@ -1,3 +1,9 @@
+## Dịch Game v6.25.0
+
+- MỚI: CHE CHỮ GỐC – chữ Việt hiện đè đúng chỗ chữ tiếng Anh, ô che cùng màu nền game, chữ cùng màu chữ gốc, tự thu nhỏ cho vừa.
+  - Áp dụng cho F12 (dịch cả màn hình) và các vùng dịch (hội thoại / nhiệm vụ).
+  - Bật / tắt: thẻ Dịch màn hình → KHUNG CHỮ DỊCH → "Che chữ gốc của game". Tắt = hiện khung dịch riêng như cũ.
+
 ## Dich Game v6.26.0
 
 - Thu vien game: moi game deu co nut "Lồng tiếng". Game chua co cong cu rieng: bat long tieng theo phu de (doc phu de bang giong Viet) va quet file am thanh de biet co lam duoc long tieng thay file khong.
